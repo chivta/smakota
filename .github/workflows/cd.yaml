@@ -33,7 +33,7 @@ jobs:
           SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           files="$(git diff-tree --root --no-commit-id --name-only -r -m "$SHA" | sort -u)"
-          if grep -Eq '^(Dockerfile|\.dockerignore|go\.(mod|sum)|cmd/|internal/|data/)' <<<"$files"; then
+          if grep -Eq '^(Dockerfile|\.dockerignore|go\.(mod|sum)|cmd/|internal/)' <<<"$files"; then
             echo "calbot=true" >> "$GITHUB_OUTPUT"
           else
             echo "calbot=false" >> "$GITHUB_OUTPUT"

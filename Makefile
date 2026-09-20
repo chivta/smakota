@@ -13,7 +13,7 @@ lint:
 	golangci-lint run
 
 migrate:
-	docker compose up -d api
+	docker compose run --rm api migrate
 
 seed:
 	docker compose run --rm api seed
