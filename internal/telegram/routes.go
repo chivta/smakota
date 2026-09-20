@@ -39,3 +39,15 @@ func (b *Bot) routes() {
 	b.bot.Handle(&tele.Btn{Unique: cbActivity}, b.onActivityPick)
 	b.bot.Handle(&tele.Btn{Unique: cbRecent}, b.onRecentPick)
 }
+
+// registerCommands publishes the command menu, which is what makes /day
+// discoverable. Without it Telegram shows no "/" hint and the day view is
+// reachable only by someone who already knows the command exists.
+func (b *Bot) registerCommands() error {
+	return b.bot.SetCommands([]tele.Command{
+		{Text: "day", Description: T("cmd.day")},
+		{Text: "recents", Description: T("cmd.recents")},
+		{Text: "weight", Description: T("cmd.weight")},
+		{Text: "cancel", Description: T("cmd.cancel")},
+	})
+}

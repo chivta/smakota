@@ -72,6 +72,13 @@ func New(opts Options) (*Bot, error) {
 	}
 	b.routes()
 
+	// A failed registration leaves the bot working without a command menu, so
+	// it is logged rather than fatal.
+	cmdErr := b.registerCommands()
+	if cmdErr != nil {
+		log.Error().Err(cmdErr).Msg("could not publish the command menu")
+	}
+
 	return b, nil
 }
 

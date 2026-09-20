@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/rs/zerolog/log"
 	tele "gopkg.in/telebot.v4"
 )
 
@@ -242,7 +243,22 @@ func (b *Bot) saveEntry(c tele.Context, foodID int64, grams float64) error {
 	}
 
 	b.sessions.clear(c.Sender().ID)
-	return b.send(c, fmt.Sprintf(T("saved"), esc(entry.FoodName), entry.Grams, entry.Nutrition.Kcal))
+
+	saved := fmt.Sprintf(T("saved"), esc(entry.FoodName), entry.Grams, entry.Nutrition.Kcal)
+	return b.send(c, saved+b.dayTotal(ctx, c.Sender().ID))
+}
+
+// dayTotal appends the running day to a save reply, so the total is visible
+// without asking for it. A failed lookup drops the line rather than the save.
+func (b *Bot) dayTotal(ctx context.Context, telegramID int64) string {
+	day, err := b.api.Day(ctx, telegramID, "today")
+	if err != nil {
+		log.Error().Err(err).Msg("could not load the day total after a save")
+		return ""
+	}
+
+	return fmt.Sprintf(T("saved.total"),
+		day.Consumed.Kcal, day.KcalTarget, day.KcalTarget-int(day.Consumed.Kcal))
 }
 
 func (b *Bot) onConfirm(c tele.Context) error {

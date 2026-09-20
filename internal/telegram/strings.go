@@ -32,6 +32,7 @@ var msg = map[string]string{
 	"resolve.queued": "Записала запит, додам це до бази.",
 
 	"saved":        "Записала: %s, %.0f г, %.0f ккал.",
+	"saved.total":  "\n%.0f з %d ккал · лишилось %d",
 	"deleted":      "Видалила.",
 	"updated":      "Змінила.",
 	"day.header":   "%.0f з %d ккал · лишилось %d\nБілок %.0f з %d г",
@@ -52,10 +53,14 @@ var msg = map[string]string{
 	"btn.wrong":   "Не те",
 	"btn.cancel":  "Скасувати",
 	"btn.manual":  "Ввести вручну",
-	"btn.today":   "Сьогодні",
 	"btn.repeat":  "Повторити вчорашній день",
 	"btn.grams":   "%.0f г",
 	"btn.portion": "%s (%.0f г)",
+
+	"cmd.day":     "Що вже записано сьогодні",
+	"cmd.recents": "Швидко додати те, що часто їси",
+	"cmd.weight":  "Записати вагу",
+	"cmd.cancel":  "Скасувати поточне питання",
 
 	"state.raw":    "сирі",
 	"state.cooked": "готові",
