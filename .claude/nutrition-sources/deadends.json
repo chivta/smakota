@@ -1,0 +1,770 @@
+[
+  {
+    "name": "Фора",
+    "url": "https://fora.ua",
+    "category": "grocery",
+    "reason": "React app. Its JSON-RPC backend EcomCatalogGlobal defines a nutritionalValue field, but no populated values were found and search snippets show no КБЖУ."
+  },
+  {
+    "name": "Velmart",
+    "url": "https://velmart.ua",
+    "category": "grocery",
+    "reason": "No real product page reached. Own robots.txt points its sitemap at a staging hostname. Nutrition values only found on a third party calorie site, not on velmart.ua itself."
+  },
+  {
+    "name": "Рукавичка",
+    "url": "https://market.rukavychka.ua",
+    "category": "grocery",
+    "reason": "Online shop at market.rukavychka.ua; the food product checked had no nutrition section."
+  },
+  {
+    "name": "SPAR Україна",
+    "url": "https://shop.spar.ua",
+    "category": "grocery",
+    "reason": "Search attempt used a wrong route and returned HTTP 404. No nutrition confirmed, not retried with a correct route."
+  },
+  {
+    "name": "Близенько",
+    "url": "https://blyzenko.ua",
+    "category": "grocery",
+    "reason": "No online product catalogue."
+  },
+  {
+    "name": "Thrash",
+    "url": "https://thrash.ua",
+    "category": "grocery",
+    "reason": "Site is a store locator and promotions page only, no evidence of a shoppable online catalogue."
+  },
+  {
+    "name": "Сім23 Сімі",
+    "url": "https://simi.ua",
+    "category": "grocery",
+    "reason": "Both domains are marketing or informational sites, no product catalogue found."
+  },
+  {
+    "name": "Фуршет",
+    "url": "https://furshet.ua",
+    "category": "grocery",
+    "reason": "Chain went bankrupt in 2021 and was absorbed by Сільпо-Фуд. Domain still resolves but no functioning online catalogue was confirmed."
+  },
+  {
+    "name": "Good Wine",
+    "url": "https://goodwine.com.ua",
+    "category": "grocery",
+    "reason": "Premium grocery and wine retailer with a large sitemap, but no product page was opened to check nutrition and the catalogue skews to alcohol, which typically omits kcal."
+  },
+  {
+    "name": "Winetime",
+    "url": "https://winetime.com.ua",
+    "category": "grocery",
+    "reason": "Alcohol only retailer, large sitemap, no product page checked and wine and spirits retailers typically do not show kcal."
+  },
+  {
+    "name": "Rozetka",
+    "url": "https://rozetka.com.ua",
+    "category": "marketplaces",
+    "reason": "Product pages return HTTP 403 from Cloudflare. No nutrition confirmed."
+  },
+  {
+    "name": "Kasta.ua",
+    "url": "https://kasta.ua",
+    "category": "marketplaces",
+    "reason": "Cloudflare interactive challenge blocks all automated access, and the site is fashion led with doubtful food coverage."
+  },
+  {
+    "name": "Prom.ua",
+    "url": "https://prom.ua",
+    "category": "marketplaces",
+    "reason": "General marketplace with seller authored descriptions and no unified nutrition schema. No structured nutrition found."
+  },
+  {
+    "name": "Allo.ua",
+    "url": "https://allo.ua",
+    "category": "marketplaces",
+    "reason": "Guessed grocery category URL returned HTTP 404, no nutrition confirmed."
+  },
+  {
+    "name": "Price.ua",
+    "url": "https://price.ua",
+    "category": "marketplaces",
+    "reason": "Search results page for a well known snack showed zero nutrition text anywhere on the page."
+  },
+  {
+    "name": "Порівняй ціни, porivnyalnik.com",
+    "url": "https://porivnyalnik.com",
+    "category": "marketplaces",
+    "reason": "Client rendered SPA, static shell carries no nutrition data and is explicitly a price comparison tool."
+  },
+  {
+    "name": "Мінфін, Ціни на продукти",
+    "url": "https://index.minfin.com.ua/ua/markets/wares/",
+    "category": "marketplaces",
+    "reason": "Daily average price index by category and chain, no per product or nutrition data."
+  },
+  {
+    "name": "Hotline.ua",
+    "url": "https://hotline.ua",
+    "category": "marketplaces",
+    "reason": "The food category path returned a dead stub, Legacy home controller has been disabled, no working food category found."
+  },
+  {
+    "name": "UPCitemdb",
+    "url": "https://www.upcitemdb.com",
+    "category": "marketplaces",
+    "reason": "Trial endpoint returned zero results for all four Ukrainian barcodes tested, including well known international brands."
+  },
+  {
+    "name": "GS1 GEPIR, Verified by GS1",
+    "url": "https://gepir.gs1ua.org",
+    "category": "marketplaces",
+    "reason": "Resolves a barcode to the owning company only, never to nutrition. Confirmed identity data only, no nutrition fields anywhere."
+  },
+  {
+    "name": "Glovo Україна",
+    "url": "https://glovoapp.com/uk/ua",
+    "category": "marketplaces",
+    "reason": "JavaScript app with no server-rendered menu and no anonymous menu API found. No venue seen showing kcal."
+  },
+  {
+    "name": "Bolt Food, Bolt Market",
+    "url": "https://food.bolt.eu/uk-ua",
+    "category": "marketplaces",
+    "reason": "A live KFC store page returns an empty app shell. Third-party scrapers extract name, description and price only."
+  },
+  {
+    "name": "Uklon Delivery",
+    "url": "https://uklon.com.ua",
+    "category": "marketplaces",
+    "reason": "A courier and logistics product that moves items from partner stores, not itself a product catalogue, no nutrition surface."
+  },
+  {
+    "name": "Domino's Pizza Україна",
+    "url": "https://dominos.ua",
+    "category": "foodservice",
+    "reason": "Full product JSON extracted from the site has price, weight and description fields only, confirmed no calorie or macro fields exist."
+  },
+  {
+    "name": "Pizza Day",
+    "url": "https://pizzaday.ua",
+    "category": "foodservice",
+    "reason": "Homepage has zero calorie or nutrition keywords, ordering happens in app and was not reachable."
+  },
+  {
+    "name": "Багато Лосося",
+    "url": "https://bagatolososia.kiev.ua",
+    "category": "foodservice",
+    "reason": "Real product page opened, zero calorie or composition keywords found."
+  },
+  {
+    "name": "Оболонь",
+    "url": "https://obolon.ua",
+    "category": "producers",
+    "reason": "Beer production listing and an individual product page both loaded fully but show zero nutrition text, unlike Carlsberg Ukraine and Опілля which do publish it."
+  },
+  {
+    "name": "Mafia",
+    "url": "https://mafia.ua",
+    "category": "foodservice",
+    "reason": "Full real homepage loaded, zero calorie or protein keywords found."
+  },
+  {
+    "name": "Celentano",
+    "url": "https://pizzacelentano.com",
+    "category": "foodservice",
+    "reason": "All 63 items on celentano.choiceqr.com have kcal set to 0 or empty. The site at pizzacelentano.com shows no values."
+  },
+  {
+    "name": "Yaposhka",
+    "url": "https://yaposhka.kh.ua",
+    "category": "foodservice",
+    "reason": "The site's own menu link resolves to a different brand name, Yapiko, needs a human check before use."
+  },
+  {
+    "name": "Суші Wok",
+    "url": "https://sushiwok.ua",
+    "category": "foodservice",
+    "reason": "sushiwok.ua was down; the chain now trades as Arigato at arigato.kyiv.ua, whose homepage shows no nutrition."
+  },
+  {
+    "name": "Budusushi",
+    "url": "https://budusushi.ua",
+    "category": "foodservice",
+    "reason": "Only generic low calorie marketing prose found, no numeric nutrition values on the pages checked."
+  },
+  {
+    "name": "Poke Oke",
+    "url": "https://www.instagram.com/poke.oke.kyiv",
+    "category": "foodservice",
+    "reason": "No dedicated official website found, presence is social media only."
+  },
+  {
+    "name": "Aroma Kava",
+    "url": "https://aromakava.ua",
+    "category": "foodservice",
+    "reason": "Full real homepage loaded, zero calorie or protein keywords found."
+  },
+  {
+    "name": "One Price Coffee, Coffee Life",
+    "url": "https://onepricecoffee.com.ua",
+    "category": "foodservice",
+    "reason": "Neither domain resolved, no obviously correct official site found for either name."
+  },
+  {
+    "name": "Хінкальня",
+    "url": "https://khinkalnya.com/ua/",
+    "category": "foodservice",
+    "reason": "ChoiceQR menu has the kcal field but it is always 0, with no macros."
+  },
+  {
+    "name": "Мамасіта",
+    "url": "https://tomato.ua",
+    "category": "foodservice",
+    "reason": "No dedicated official site found beyond listing and review sites."
+  },
+  {
+    "name": "Шаурмен, Odesa",
+    "url": "https://shaurman.com.ua",
+    "category": "foodservice",
+    "reason": "Menu page has zero calorie or protein keywords found."
+  },
+  {
+    "name": "Doner Marmaris, Чорноморка",
+    "url": "",
+    "category": "foodservice",
+    "reason": "No official website could be confirmed for either name, likely small regional chains."
+  },
+  {
+    "name": "Burger Club, Dogs and Tails, Farsh",
+    "url": "",
+    "category": "foodservice",
+    "reason": "Search results were dominated by an unrelated same named Russian chain, or the businesses only have Instagram or Facebook pages, no confirmed official Ukrainian site with a menu found."
+  },
+  {
+    "name": "Premium Butcher",
+    "url": "https://premiumbutcher.com.ua",
+    "category": "foodservice",
+    "reason": "Zero calorie or composition keywords found, this is a raw meat retailer rather than a menu driven restaurant."
+  },
+  {
+    "name": "Франс.уа",
+    "url": "https://frans.ua",
+    "category": "foodservice",
+    "reason": "No menu link found in the main navigation and no product sitemap, no reachable menu content."
+  },
+  {
+    "name": "Пекарня Хлібний",
+    "url": "",
+    "category": "outofhome",
+    "reason": "Could not locate an official website in this pass."
+  },
+  {
+    "name": "Козачок",
+    "url": "https://kozachok.ua",
+    "category": "foodservice",
+    "reason": "Site resolves but was found only via search, no menu or nutrition content checked in depth."
+  },
+  {
+    "name": "Лісова пісня",
+    "url": "",
+    "category": "foodservice",
+    "reason": "The name matches several unrelated venues, no single confirmed chain site identified."
+  },
+  {
+    "name": "OKKO Cafe",
+    "url": "https://www.okko.ua/cafe",
+    "category": "outofhome",
+    "reason": "No nutrition, allergen or calorie page anywhere on okko.ua; checked /cafe, a 2,801-URL sitemap and likely paths."
+  },
+  {
+    "name": "WOG Cafe",
+    "url": "https://wog.ua",
+    "category": "outofhome",
+    "reason": "No dedicated menu or nutrition page found on the official site, only news posts about seasonal menu changes."
+  },
+  {
+    "name": "SOCAR Buta Cafe",
+    "url": "https://socar.ua/cafe/01014",
+    "category": "outofhome",
+    "reason": "Client rendered SPA, curl gets an empty app shell, no nutrition data retrievable without a headless browser."
+  },
+  {
+    "name": "BRSM-Nafta",
+    "url": "https://brsm-nafta.com/",
+    "category": "outofhome",
+    "reason": "Confirmed real gas station cafe with food, but no nutrition information found on the official site."
+  },
+  {
+    "name": "Shell, Авіас",
+    "url": "https://avias.ua/",
+    "category": "outofhome",
+    "reason": "Confirmed real gas station cafe brand, but no nutrition information found on the official site."
+  },
+  {
+    "name": "Motto",
+    "url": "https://motto.ua/",
+    "category": "outofhome",
+    "reason": "Loyalty program and station info only, no nutrition information found."
+  },
+  {
+    "name": "Кулиничі",
+    "url": "https://kulinichi.com",
+    "category": "outofhome",
+    "reason": "No kcal or nutrition text on either the corporate site or the shop homepage, despite a self reported SKU count."
+  },
+  {
+    "name": "FitBox",
+    "url": "https://fitbox.kiev.ua",
+    "category": "outofhome",
+    "reason": "Domain did not resolve or connect during this check, cannot verify it is still operating."
+  },
+  {
+    "name": "Галя Балувана",
+    "url": "https://galia-baluvana.com",
+    "category": "outofhome",
+    "reason": "Frozen ready meal franchise with about 950 stores, category pages show product names only, no protein, fat, carb or kcal text."
+  },
+  {
+    "name": "Рудь",
+    "url": "https://rud.ua/",
+    "category": "outofhome",
+    "reason": "Site currently shows under reconstruction, no content reachable, live but temporarily empty."
+  },
+  {
+    "name": "Хрещатик, Лімо",
+    "url": "https://limo.ua/",
+    "category": "outofhome",
+    "reason": "Cloudflare managed challenge blocks curl on every path except robots.txt, no nutrition confirmed directly on the site. Values for these brands exist on tablycjakalorijnosti.com.ua instead."
+  },
+  {
+    "name": "Геркулес",
+    "url": "http://hercules.ua/",
+    "category": "outofhome",
+    "reason": "Domain did not respond during this check, company confirmed real via secondary sources but the site itself is unreachable."
+  },
+  {
+    "name": "Ласунка",
+    "url": "",
+    "category": "outofhome",
+    "reason": "No official manufacturer website found, brand itself is real and documented only via retailers and third party calorie sites."
+  },
+  {
+    "name": "Молокія",
+    "url": "https://www.molokija.com",
+    "category": "producers",
+    "reason": "A 4.4 MB catalogue PDF exists but shows fat percentage and ingredient lists only, no numeric kcal, protein, fat or carb figures anywhere."
+  },
+  {
+    "name": "Звенигора",
+    "url": "https://zvenigora.com/products/cream_cheese/",
+    "category": "producers",
+    "reason": "Page has a nutrition heading but the numeric table did not appear in the fetched HTML, likely loaded by JS, not confirmed either way."
+  },
+  {
+    "name": "Organic Milk",
+    "url": "https://organic-milk.com.ua",
+    "category": "producers",
+    "reason": "Thin marketing site, only 3 URLs in sitemap, not checked this session."
+  },
+  {
+    "name": "Гармонія",
+    "url": "https://garmonija.ua",
+    "category": "producers",
+    "reason": "Full homepage loads, zero nutrition keywords found."
+  },
+  {
+    "name": "Руна",
+    "url": "https://runa.ua",
+    "category": "producers",
+    "reason": "Large category page loads, zero nutrition keyword hits."
+  },
+  {
+    "name": "Nestle Україна",
+    "url": "https://www.nestle.ua",
+    "category": "producers",
+    "reason": "Main domain and the dedicated nutrition page both return HTTP 403 to curl, blocked by a WAF or Cloudflare."
+  },
+  {
+    "name": "Наша Ряба, МХП",
+    "url": "https://ryaba.ua/product/gomilka/",
+    "category": "producers",
+    "reason": "Product page is a JS heavy SPA, no nutrition text present in the fetched HTML."
+  },
+  {
+    "name": "Епікур",
+    "url": "https://epikur.com.ua",
+    "category": "producers",
+    "reason": "Sitemap has only 4 URLs and the one product URL tried returned HTTP 404."
+  },
+  {
+    "name": "Глобино",
+    "url": "https://globino.ua",
+    "category": "producers",
+    "reason": "Resolves to a WordPress corporate news blog, not a product catalogue, no nutrition content found."
+  },
+  {
+    "name": "Ходорівський м'ясокомбінат",
+    "url": "https://khodorivmk.com/konservy-miasni/miaso-tushkovane-svynyna/",
+    "category": "producers",
+    "reason": "The exact diary product page loads and confirms the title but shows composition only, no kcal, protein, fat or carb numbers."
+  },
+  {
+    "name": "Favore",
+    "url": "https://favore.com.ua",
+    "category": "producers",
+    "reason": "Domain is a broken redirect loop with no content. The similarly named producer Фаворит Плюс makes different products, the actual maker of the diary's turkey roll was not identified."
+  },
+  {
+    "name": "Уманьмясо, Юнігран",
+    "url": "",
+    "category": "producers",
+    "reason": "No official website could be located via search."
+  },
+  {
+    "name": "Baker House",
+    "url": "",
+    "category": "producers",
+    "reason": "No independent producer website found, likely a retailer private label rather than a company with its own site."
+  },
+  {
+    "name": "Житомирські ласощі",
+    "url": "https://lasoshhi.com.ua",
+    "category": "producers",
+    "reason": "Domain returns HTTP 404 on both root adjacent sitemap and direct checks."
+  },
+  {
+    "name": "Mondelez Україна",
+    "url": "",
+    "category": "producers",
+    "reason": "Not investigated in this pass, no producer nutrition page located."
+  },
+  {
+    "name": "PepsiCo Ukraine catalogue",
+    "url": "https://products.pepsico.ua",
+    "category": "producers",
+    "reason": "Category pages are a client rendered SPA, curl could not extract individual product detail markup or nutrition fields."
+  },
+  {
+    "name": "Lay's Ukraine brand site",
+    "url": "https://lays.ua",
+    "category": "producers",
+    "reason": "Thin marketing landing page, zero nutrition content, no per product pages."
+  },
+  {
+    "name": "Sandora brand site",
+    "url": "https://sandora.ua",
+    "category": "producers",
+    "reason": "Thin marketing landing page, zero nutrition content, no per product pages."
+  },
+  {
+    "name": "Roshen",
+    "url": "https://roshen.com",
+    "category": "producers",
+    "reason": "Catalogue paths return HTTP 404 and the root fetch behaves unreliably. The retail store site roshenstores.com is a JS SPA with no extractable product links, not independently verified on a Roshen owned domain."
+  },
+  {
+    "name": "АВК",
+    "url": "https://avksweets.com",
+    "category": "producers",
+    "reason": "Three pages fetched, all JS rendered shells with no server side nutrition text."
+  },
+  {
+    "name": "Optimum Nutrition",
+    "url": "https://www.optimumnutrition.com",
+    "category": "producers",
+    "reason": "No Ukraine specific producer site, global site returned bot protected fallback content on direct product URLs."
+  },
+  {
+    "name": "Моршинська",
+    "url": "https://morshynska.ua",
+    "category": "producers",
+    "reason": "No nutrition keywords found on the homepage, expected for plain water, energy drink sub line not individually checked."
+  },
+  {
+    "name": "Море Пива",
+    "url": "https://morepiva.ua",
+    "category": "producers",
+    "reason": "A dried meat snack product page loaded with no nutrition keywords found, this looks like a retailer rather than the actual producer."
+  },
+  {
+    "name": "Флагман",
+    "url": "https://e-flagman.fish",
+    "category": "producers",
+    "reason": "Sitemap.xml returns HTTP 200 but with an empty URL list, no product pages found."
+  },
+  {
+    "name": "Tablicakalorijnosti.ru, health-diet.ru, dietadiary.com",
+    "url": "https://health-diet.ru",
+    "category": "calsites",
+    "reason": "Russian hosted calorie sites, resolvable by DNS but every connection attempt timed out from our network, could not spot check any content."
+  },
+  {
+    "name": "Calorizator.ru",
+    "url": "https://calorizator.ru",
+    "category": "calsites",
+    "reason": "Long running Russian calorie table site, but every connection attempt timed out from our network, not opened in this pass."
+  },
+  {
+    "name": "Клопотенко",
+    "url": "https://klopotenko.com",
+    "category": "calsites",
+    "reason": "Recipe listings and category pages show no kcal or macro figures anywhere."
+  },
+  {
+    "name": "Смачно",
+    "url": "https://smachno.in.ua",
+    "category": "calsites",
+    "reason": "Navigation promises a nutritional value section but individual recipe pages were not confirmed to show any kcal or macro figures."
+  },
+  {
+    "name": "ЄДА",
+    "url": "",
+    "category": "calsites",
+    "reason": "A media and TV brand, not a data source, no independent product or nutrition database found."
+  },
+  {
+    "name": "Ukrainian official МОЗ tables",
+    "url": "https://zakon.rada.gov.ua/go/z0146-00",
+    "category": "opendb",
+    "reason": "No live, browsable per product database exists. Only a 2000 era methodology document, which lost legal force in 2014, and outdated 1999 physiological needs norms were found, neither is a browsable food item table."
+  },
+  {
+    "name": "Skurikhin food composition reference",
+    "url": "",
+    "category": "opendb",
+    "reason": "No official digital release exists, only scans of uncertain legality on file sharing sites, and the original carries a no reproduction notice. Given the war, treated as a Russia origin source unsuitable as a data pipeline input."
+  },
+  {
+    "name": "EFSA food composition database",
+    "url": "https://www.efsa.europa.eu/en/data-report/food-composition",
+    "category": "opendb",
+    "reason": "Current version covers only 7 EU countries with limited public access. A genuinely open pan-European database is planned but was not available at research time."
+  },
+  {
+    "name": "Kaggle Ukraine Food Prices dataset",
+    "url": "https://www.kaggle.com/datasets/ihormuliar/ukraine-food-prices",
+    "category": "opendb",
+    "reason": "Despite the name, contains prices only, no nutrition values."
+  },
+  {
+    "name": "MyFitnessPal API",
+    "url": "https://www.myfitnesspal.com",
+    "category": "apps",
+    "reason": "Public developer API program is closed to new applicants, no legal path for a bot to pull its database."
+  },
+  {
+    "name": "Cronometer",
+    "url": "https://cronometer.com",
+    "category": "apps",
+    "reason": "Its core NCCDB dataset is a paid, proprietary academic license not redistributed via any public API."
+  },
+  {
+    "name": "Lose It!",
+    "url": "https://www.loseit.com",
+    "category": "apps",
+    "reason": "No public developer API found."
+  },
+  {
+    "name": "YAZIO",
+    "url": "https://www.yazio.com",
+    "category": "apps",
+    "reason": "No public developer API or terms found."
+  },
+  {
+    "name": "Lifesum",
+    "url": "https://lifesum.com",
+    "category": "apps",
+    "reason": "No public API found."
+  },
+  {
+    "name": "MacroFactor",
+    "url": "https://macrofactor.com",
+    "category": "apps",
+    "reason": "App only, no public API, uses Open Food Facts which is already a separate source."
+  },
+  {
+    "name": "Carbon, Layne Norton",
+    "url": "https://www.joincarbon.com",
+    "category": "apps",
+    "reason": "Uses FatSecret's database under the hood, governed by FatSecret's terms, not an independent source."
+  },
+  {
+    "name": "Samsung Health, Samsung Food",
+    "url": "https://developer.samsung.com/health",
+    "category": "apps",
+    "reason": "Samsung Health SDK is a data store, not a browsable database, and Samsung Food has no public API."
+  },
+  {
+    "name": "Google Fit, Health Connect",
+    "url": "https://developers.google.com/health/data-types/nutrition",
+    "category": "apps",
+    "reason": "A nutrition data type only, no food catalogue of its own, a diary sync target rather than a nutrition source."
+  },
+  {
+    "name": "Apple Health, HealthKit",
+    "url": "https://developer.apple.com/health-fitness/",
+    "category": "apps",
+    "reason": "Nutrition sample types only, no food catalogue, a diary sync target rather than a nutrition source."
+  },
+  {
+    "name": "Noom",
+    "url": "https://www.noom.com",
+    "category": "apps",
+    "reason": "App only, no public API."
+  },
+  {
+    "name": "Fitatu",
+    "url": "https://www.fitatu.com",
+    "category": "apps",
+    "reason": "No public API, and no evidence of a Ukrainian language database, coverage is Polish and Western European markets."
+  },
+  {
+    "name": "Худеем вместе, Худеем за неделю",
+    "url": "https://hv.life/",
+    "category": "apps",
+    "reason": "Russian market app family, no data source documentation, no public API, and legally uncertain for a bot serving a Ukraine based user."
+  },
+  {
+    "name": "Cal AI",
+    "url": "https://www.calai.app",
+    "category": "apps",
+    "reason": "App only, no public API or web interface for its manual search database, and its photo path is a model estimate with no underlying database row."
+  },
+  {
+    "name": "Calorie Mama, Azumio",
+    "url": "https://www.caloriemama.ai",
+    "category": "apps",
+    "reason": "Food recognition API is pitched to partners only, no public terms or self serve access found."
+  },
+  {
+    "name": "Syndigo, 1WorldSync",
+    "url": "https://syndigo.com/gdsn/",
+    "category": "apps",
+    "reason": "Enterprise B2B product content platform, no self serve or public tier, requires a retailer or brand relationship."
+  },
+  {
+    "name": "NielsenIQ Brandbank, Label Insight",
+    "url": "https://nielseniq.com/global/en/solutions/brandbank-enriched-product-data/",
+    "category": "apps",
+    "reason": "Enterprise data licensing only, no free or self serve tier."
+  },
+  {
+    "name": "Salsify",
+    "url": "https://www.salsify.com",
+    "category": "apps",
+    "reason": "PIM software for a brand's own catalogue, not a shared database, no public dataset to access."
+  },
+  {
+    "name": "GS1 GDSN",
+    "url": "https://www.gs1.org/services/gdsn",
+    "category": "apps",
+    "reason": "Nutrition data travels over a closed B2B network requiring a paid data pool subscription and a trading partner relationship, not accessible to an independent bot."
+  },
+  {
+    "name": "ЩоЇм",
+    "url": "https://shoim.com.ua",
+    "category": "apps",
+    "reason": "Barcode scanner app marketed to show composition and nutritional value, but the web root returns HTTP 404 and there is no public catalogue or API to verify against."
+  },
+  {
+    "name": "data.gov.ua",
+    "url": "https://data.gov.ua",
+    "category": "opendb",
+    "reason": "No food composition dataset. A search for харчова цінність returns no datasets; only farm production statistics exist."
+  },
+  {
+    "name": "Smaki Maki",
+    "url": "https://smaki-maki.com",
+    "category": "foodservice",
+    "reason": "Product pages show composition only, no kcal."
+  },
+  {
+    "name": "Musafir",
+    "url": "https://www.musafir.com.ua",
+    "category": "foodservice",
+    "reason": "Product pages show composition and weight only."
+  },
+  {
+    "name": "Monosushi",
+    "url": "https://monosushi.com.ua",
+    "category": "foodservice",
+    "reason": "Product pages show composition and weight only."
+  },
+  {
+    "name": "Yapiko",
+    "url": "https://yapiko.ua",
+    "category": "foodservice",
+    "reason": "Roll category pages have no kcal or calorie strings."
+  },
+  {
+    "name": "Kyiv Food Market",
+    "url": "https://kyivfood-market.choiceqr.com",
+    "category": "foodservice",
+    "reason": "ChoiceQR kcal field empty for every item checked."
+  },
+  {
+    "name": "Pesto Family",
+    "url": "https://pesto-family.com",
+    "category": "foodservice",
+    "reason": "Pesto Cafe, Pasta and Pizza, Mister Twister pages show no nutrition and no composition."
+  },
+  {
+    "name": "Tarantino Family",
+    "url": "https://www.tarantino-family.com",
+    "category": "foodservice",
+    "reason": "Includes Хачапурі та Вино. Delivery pages show no nutrition."
+  },
+  {
+    "name": "Two Chellas Pizza",
+    "url": "https://twochellaspizza.choiceqr.com",
+    "category": "foodservice",
+    "reason": "1 of 317 ChoiceQR items has a kcal value."
+  },
+  {
+    "name": "Pizza33",
+    "url": "https://pizza33.com.ua",
+    "category": "foodservice",
+    "reason": "Product pages show no nutrition or composition."
+  },
+  {
+    "name": "Pokeman",
+    "url": "https://pokeman.com.ua",
+    "category": "foodservice",
+    "reason": "Poke bowl product pages show no nutrition."
+  },
+  {
+    "name": "Pizza House",
+    "url": "https://pizzahouse.ua",
+    "category": "foodservice",
+    "reason": "Product pages show composition only."
+  },
+  {
+    "name": "Суші Сторі",
+    "url": "https://ua.sushistory.com",
+    "category": "foodservice",
+    "reason": "Same Next.js template as Мама Манана; city menu routes not reached and no values found."
+  },
+  {
+    "name": "Козирна Карта",
+    "url": "",
+    "category": "foodservice",
+    "reason": "Chain closed in 2019."
+  },
+  {
+    "name": "Poster POS QR menus",
+    "url": "https://joinposter.com",
+    "category": "marketplaces",
+    "reason": "No live Ukrainian venue menu located to check; marketing mentions no nutrition fields."
+  },
+  {
+    "name": "Syrve, formerly iiko",
+    "url": "https://ua.restasystem.com",
+    "category": "marketplaces",
+    "reason": "Dish cards can store nutrition per vendor docs, but no Ukrainian venue publishing it was found."
+  },
+  {
+    "name": "Expirenza by monobank",
+    "url": "https://expz.menu",
+    "category": "marketplaces",
+    "reason": "QR menus are a JavaScript app; no nutrition strings or JSON API reachable."
+  }
+]

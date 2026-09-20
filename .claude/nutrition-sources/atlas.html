@@ -1,0 +1,2733 @@
+<title>Calbot Source Atlas</title>
+<meta name="description" content="Where to get kcal, protein, fat and carbs for food eaten in Ukraine.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@500;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root {
+  --bg: #F3F5F1;
+  --surface: #FFFFFF;
+  --ink: #17201A;
+  --muted: #5A665E;
+  --rule: #D5DCD4;
+  --accent: #1D4DB3;
+  --tag: #F2D04F;
+  --tag-ink: #2E2500;
+  --yes: #1F6B43; --yes-bg: #DDEFE3;
+  --part: #7F5300; --part-bg: #F6E8C8;
+  --no: #9C3526; --no-bg: #F4DDD8;
+  --unk: #56625A; --unk-bg: #E6EAE5;
+  --display: "Onest", "IBM Plex Sans", system-ui, sans-serif;
+  --body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1311; --surface: #161B18; --ink: #E3E9E4; --muted: #97A29B; --rule: #29312C;
+    --accent: #93B2FF; --tag: #E4C548; --tag-ink: #1C1600;
+    --yes: #7FD3A2; --yes-bg: #15301F; --part: #E6B65E; --part-bg: #362A10;
+    --no: #F09B8D; --no-bg: #3A1D18; --unk: #A6B0A9; --unk-bg: #212824;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1311; --surface: #161B18; --ink: #E3E9E4; --muted: #97A29B; --rule: #29312C;
+  --accent: #93B2FF; --tag: #E4C548; --tag-ink: #1C1600;
+  --yes: #7FD3A2; --yes-bg: #15301F; --part: #E6B65E; --part-bg: #362A10;
+  --no: #F09B8D; --no-bg: #3A1D18; --unk: #A6B0A9; --unk-bg: #212824;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 var(--body);
+  padding-inline: clamp(16px, 4vw, 48px);
+  padding-block: 44px 96px;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1320px; margin-inline: auto; display: grid; gap: 64px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; line-height: 1.15; text-wrap: balance; }
+h1 { font-size: clamp(36px, 5.2vw, 56px); font-weight: 700; letter-spacing: -0.025em; }
+h2 { font-size: 27px; font-weight: 700; letter-spacing: -0.01em; }
+h3 { font-size: 18px; font-weight: 700; }
+p { margin: 0; }
+a { color: var(--accent); text-underline-offset: 2px; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+a:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 2px; }
+code { font-family: var(--mono); font-size: 0.86em; }
+.eyebrow { font: 500 11.5px/1 var(--mono); letter-spacing: 0.09em; text-transform: uppercase; color: var(--muted); }
+.prose { max-width: 68ch; display: grid; gap: 12px; }
+.prose ul { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.muted { color: var(--muted); }
+section.block { display: grid; gap: 22px; }
+.block-head { display: grid; gap: 8px; max-width: 72ch; }
+
+/* Header with a nutrition-label summary */
+header.top { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 40px; align-items: end; }
+header.top .intro { display: grid; gap: 18px; }
+header.top .lede { font-size: 18px; color: var(--muted); max-width: 60ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 26px; font: 12.5px/1.4 var(--mono); color: var(--muted); }
+.facts b { color: var(--ink); font-weight: 500; }
+.label { width: 300px; background: var(--surface); border: 1.5px solid var(--ink); padding: 12px 14px 10px; }
+.label .label-title { font: 700 16px/1.2 var(--display); padding-bottom: 6px; border-bottom: 7px solid var(--ink); }
+.label .label-sub { font-size: 12px; color: var(--muted); padding-block: 5px; border-bottom: 3px solid var(--ink); }
+.label dl { margin: 0; }
+.label .r { display: flex; justify-content: space-between; gap: 12px; padding-block: 5px; border-bottom: 1px solid var(--rule); font-size: 13.5px; }
+.label .r:last-child { border-bottom: 3px solid var(--ink); }
+.label dt { margin: 0; }
+.label dd { margin: 0; font: 500 13.5px var(--mono); font-variant-numeric: tabular-nums; }
+
+/* Start here */
+.picks { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); column-gap: 36px; }
+.pick { border-top: 1px solid var(--rule); padding-block: 16px 18px; display: grid; gap: 6px; align-content: start; }
+.pick .for { font: 500 11px/1.3 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.pick h3 { font-size: 17px; }
+.pick h3 a { color: var(--ink); text-decoration: none; }
+.pick h3 a:hover { text-decoration: underline; }
+.pick p { font-size: 14px; }
+
+/* Response samples */
+.samples { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 18px; }
+.sample { display: grid; gap: 8px; min-width: 0; align-content: start; }
+.sample .cap { font-size: 13.5px; color: var(--muted); }
+pre { margin: 0; background: var(--surface); border: 1px solid var(--rule); padding: 14px 16px; overflow-x: auto; font: 12.5px/1.6 var(--mono); color: var(--ink); }
+pre .k { color: var(--muted); }
+pre mark { background: var(--tag); color: var(--tag-ink); padding-inline: 2px; }
+
+/* Chips and tags */
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 500 12px/1 var(--body); padding: 4px 8px 4px 7px; border-radius: 999px; white-space: nowrap; background: var(--unk-bg); color: var(--unk); }
+.chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.chip-yes { background: var(--yes-bg); color: var(--yes); }
+.chip-part { background: var(--part-bg); color: var(--part); }
+.chip-no { background: var(--no-bg); color: var(--no); }
+.tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+.tag { font: 500 11px/1.35 var(--mono); background: var(--tag); color: var(--tag-ink); padding: 2px 6px; border-radius: 2px; }
+.note { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+/* Tables */
+.scroller { overflow-x: auto; border-top: 2px solid var(--ink); }
+table { border-collapse: collapse; width: 100%; font-size: 13.5px; line-height: 1.45; }
+th { text-align: left; font: 500 10.5px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 10px 12px; border-bottom: 1px solid var(--rule); vertical-align: bottom; }
+td { padding: 12px; border-bottom: 1px solid var(--rule); vertical-align: top; overflow-wrap: anywhere; }
+td.num, .c-size { font-variant-numeric: tabular-nums; }
+.cat table { table-layout: fixed; min-width: 1220px; }
+.c-src { width: 12%; } .c-what { width: 27%; } .c-kb { width: 11%; } .c-acc { width: 12%; }
+.c-size { width: 12%; } .c-cost { width: 11%; } .c-lic { width: 15%; }
+td.c-src a { font-weight: 600; }
+.type { font-size: 12.5px; color: var(--muted); margin-top: 4px; }
+.ev { font: 11px/1.3 var(--mono); color: var(--muted); margin-top: 6px; }
+tbody tr:hover { background: color-mix(in srgb, var(--surface) 70%, transparent); }
+
+/* Catalogue controls */
+.controls { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; padding-block: 14px; border-block: 1px solid var(--rule); }
+.controls label { display: inline-flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
+.search { display: flex; gap: 10px; align-items: center; flex: 1 1 280px; }
+.search input { flex: 1; min-width: 0; font: 15px var(--body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 3px; padding: 8px 10px; }
+input[type="checkbox"] { accent-color: var(--accent); width: 16px; height: 16px; }
+#shown { font: 12.5px var(--mono); color: var(--muted); margin-left: auto; }
+.jump { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13.5px; }
+.jump a { text-decoration: none; }
+.jump span { font: 12px var(--mono); color: var(--muted); }
+#catalogue { display: grid; gap: 48px; }
+.cat { display: grid; gap: 10px; scroll-margin-top: 16px; }
+.cat-head { display: flex; align-items: baseline; gap: 12px; }
+.cat-head .count { font: 500 13px var(--mono); color: var(--muted); }
+.cat-blurb { color: var(--muted); max-width: 80ch; font-size: 14px; }
+.empty { padding-block: 24px; color: var(--muted); }
+
+/* Coverage */
+.cov table { min-width: 860px; }
+.cov .group td { font: 500 11px/1.2 var(--mono); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); background: var(--bg); padding-top: 22px; border-bottom: 1px solid var(--ink); }
+.cov td.item { font-weight: 500; width: 28%; }
+.cov td.times { font: 13px var(--mono); color: var(--muted); width: 7%; text-align: right; }
+.cov td.stat { width: 12%; }
+.cov-summary { display: flex; flex-wrap: wrap; gap: 10px 28px; font-size: 14px; }
+.cov-summary b { font: 600 20px var(--display); margin-right: 6px; font-variant-numeric: tabular-nums; }
+
+/* Dead ends */
+.dead { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 28px 40px; }
+.dead-group { display: grid; gap: 10px; align-content: start; }
+.dead-group h3 { font-size: 15px; padding-bottom: 8px; border-bottom: 1px solid var(--ink); }
+.dead ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.dead li { font-size: 13.5px; display: grid; gap: 2px; }
+.dead li a, .dead li strong { font-weight: 600; }
+.dead li span { color: var(--muted); }
+
+footer { color: var(--muted); font-size: 13px; border-top: 1px solid var(--rule); padding-top: 18px; }
+
+@media (max-width: 760px) {
+  header.top { grid-template-columns: minmax(0, 1fr); }
+  .label { width: 100%; }
+  #shown { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; } }
+</style>
+
+<div class="wrap">
+
+<header class="top">
+  <div class="intro">
+    <span class="eyebrow">Research for calbot · 13 September 2026</span>
+    <h1>Calbot Source Atlas</h1>
+    <p class="lede">Where to get kcal, protein, fat and carbs for the food people actually eat in Ukraine: supermarket catalogues, chain menus, producer sites, open databases and the commercial APIs behind calorie apps. Every source was checked against two weeks of real FatSecret logs.</p>
+    <div class="facts">
+      <span>Diary <b>30 Aug to 12 Sep 2026</b></span>
+      <span>Distinct items <b>74</b></span>
+      <span>Average day <b>2156 kcal</b></span>
+    </div>
+  </div>
+  <aside class="label" aria-label="Report summary">
+    <div class="label-title">Харчова цінність звіту</div>
+    <div class="label-sub">Nutrition facts for this report</div>
+    <dl id="label-rows">
+      <div class="r"><dt>Sources catalogued</dt><dd id="n-sources">0</dd></div>
+      <div class="r"><dt>Show full КБЖУ</dt><dd id="n-kbzhu">0</dd></div>
+      <div class="r"><dt>Free or free tier</dt><dd id="n-free">0</dd></div>
+      <div class="r"><dt>Checked with a live request</dt><dd id="n-live">0</dd></div>
+      <div class="r"><dt>Dead ends recorded</dt><dd id="n-dead">0</dd></div>
+    </dl>
+  </aside>
+</header>
+
+<section class="block" id="start">
+  <div class="block-head">
+    <span class="eyebrow">Start here</span>
+    <h2>The sources that do the heavy lifting</h2>
+    <p class="muted">Most of the diary resolves through these. The full catalogue below lists the rest, including the chains that publish nothing.</p>
+  </div>
+  <div class="picks">
+    <article class="pick">
+      <span class="for">Packaged food and Сільпо own brands</span>
+      <h3><a href="https://sf-ecom-api.silpo.ua/v1/uk/branches/00000000-0000-0000-0000-000000000000/products?search=snickers&limit=5" target="_blank" rel="noopener">Сільпо product API</a></h3>
+      <p>Per-100 g КБЖУ and barcodes in public JSON, no key. A plain name search matched 19 of your diary entries, from Snickers to Ходорівський тушонка.</p>
+    </article>
+    <article class="pick">
+      <span class="for">Novus, METRO, Auchan and 18 more chains</span>
+      <h3><a href="https://stores-api.zakaz.ua/stores" target="_blank" rel="noopener">Zakaz.ua stores API</a></h3>
+      <p>One API behind 21 retail chains, with a <code>nutrition_facts</code> object on each product. It matched 15 diary entries, including Яготинський айран. Its terms forbid copying without consent.</p>
+    </article>
+    <article class="pick">
+      <span class="for">Barcodes with a clean license</span>
+      <h3><a href="https://world.openfoodfacts.org" target="_blank" rel="noopener">Open Food Facts</a></h3>
+      <p>4.7 million products, 7,286 of them tagged Ukraine, downloadable in full under ODbL. Coverage of Ukrainian goods is patchy: one Молокія barcode resolves to an entry named "MIKC" with no nutrients.</p>
+    </article>
+    <article class="pick">
+      <span class="for">Ukrainian packaged goods by barcode</span>
+      <h3><a href="https://proe.info/uk/food/" target="_blank" rel="noopener">proe.info</a></h3>
+      <p>10,092 Ukrainian product pages with КБЖУ, ingredients and E-numbers. HTML only, no stated license. Snickers, Торчин ketchup and Lay's from your log are all there.</p>
+    </article>
+    <article class="pick">
+      <span class="for">Settling disagreements</span>
+      <h3><a href="https://chumak.com/product/70" target="_blank" rel="noopener">Producer sites</a></h3>
+      <p>Яготинське, Комо, Чумак, Торчин, Київхліб and Козуб print label values on their product pages. Use them as the tiebreaker when retailers disagree.</p>
+    </article>
+    <article class="pick">
+      <span class="for">Fast food</span>
+      <h3><a href="https://www.kfc.ua/nutritional-values" target="_blank" rel="noopener">KFC and McDonald's PDFs</a></h3>
+      <p>Both Ukrainian franchises publish official nutrition PDFs. KFC's covers the wings and bucket pieces in your log. McDonald's runs 22 pages and was created in July 2026.</p>
+    </article>
+    <article class="pick">
+      <span class="for">Home cooking and generic dishes</span>
+      <h3><a href="https://ciqual.anses.fr" target="_blank" rel="noopener">CIQUAL, Swiss table, USDA FDC</a></h3>
+      <p>Free downloads under open licenses. USDA has borscht and pigeon, CIQUAL has kebab sandwiches and roast chicken, the Swiss table has soy sauce and hot dogs.</p>
+    </article>
+    <article class="pick">
+      <span class="for">The data you already log</span>
+      <h3><a href="https://platform.fatsecret.com/api-editions" target="_blank" rel="noopener">FatSecret Platform API</a></h3>
+      <p>The free tiers return US data only. Ukrainian entries like Яготинське need the paid Premier edition, priced on request.</p>
+    </article>
+  </div>
+</section>
+
+<section class="block" id="shape">
+  <div class="block-head">
+    <span class="eyebrow">What the data looks like</span>
+    <h2>Three real responses from today</h2>
+    <p class="muted">No keys, no login. Trimmed for length, values unchanged.</p>
+  </div>
+  <div class="samples">
+    <div class="sample">
+      <p class="cap">Сільпо product detail. Look the product up by its numeric <code>externalProductId</code>; the UUID returns 404.</p>
+<pre><span class="k">GET sf-ecom-api.silpo.ua/v1/uk/branches/
+    00000000-0000-0000-0000-000000000000/
+    products/874616</span>
+
+{ "tag": "Харчова цінність на 100 г",
+  "key": "nutrient",
+  "attributes": [
+    { "attribute": { "key": "calorie" },
+      "value": { "title": "<mark>748/3075</mark>" } },
+    { "attribute": { "key": "proteins" },
+      "value": { "title": 0.5 } },
+    { "attribute": { "key": "fats" },
+      "value": { "title": 82.5 } },
+    { "attribute": { "key": "carbohydrates" },
+      "value": { "title": 0.8 } } ] }</pre>
+    </div>
+    <div class="sample">
+      <p class="cap">Zakaz.ua search on a Novus branch. The same API serves METRO, Auchan, Таврія В, ЕКО маркет and 16 more chains.</p>
+<pre><span class="k">GET stores-api.zakaz.ua/stores/482010105/
+    products/search?q=чумак</span>
+
+{ "title": "Кетчуп Чумак Лагідний 250г",
+  "ean": "04823096002491",
+  "nutrition_facts": {
+    "ingredient_energy": "<mark>98.00ккал</mark>",
+    "ingredient_protein": "1.10г",
+    "ingredient_fat": "0.10г",
+    "ingredient_carbohydrates": "22.50г",
+    "ingredient_sugars": "19.50г",
+    "ingredient_salt": "2.50г" } }</pre>
+    </div>
+    <div class="sample">
+      <p class="cap">McDonald's Україна composition PDF, 22 pages, created 22 July 2026. Energy is per serving, not per 100 g.</p>
+<pre><span class="k">GET ukraine.mcdonalds.ua/static/restaurants/
+    consist.pdf</span>
+
+ЧІЗБУРГЕР
+...
+Калорійність (енергетична цінність)
+на порцію продукту: <mark>280 кКал</mark> / 1172 кДж.</pre>
+    </div>
+  </div>
+</section>
+
+<section class="block cov" id="diary">
+  <div class="block-head">
+    <span class="eyebrow">Checked against your logs</span>
+    <h2>Your two weeks, item by item</h2>
+    <p class="muted">Each of the 74 distinct FatSecret entries, the source that carries it, and how confident the match is. Branded products were searched by name in the Сільпо, Zakaz.ua and Open Food Facts APIs, then confirmed in the research reports.</p>
+  </div>
+  <div class="cov-summary">
+    <span><b>25</b>exact match on a branded or chain source</span>
+    <span><b>15</b>partial, a sibling product or unofficial source</span>
+    <span><b>30</b>generic foods for open composition tables</span>
+    <span><b>4</b>not found anywhere</span>
+  </div>
+  <div class="scroller">
+    <table>
+      <thead><tr><th>Diary entry</th><th style="text-align:right">Logged</th><th>Match</th><th>Where the numbers are</th></tr></thead>
+      <tbody>
+        <tr class="group"><td colspan="4">Packaged and branded</td></tr>
+        <tr><td class="item">Яготинский Молоко 1%</td><td class="times">×14</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>milkalliance.com.ua product page, 39 kcal. Zakaz.ua has it too. Neither Сільпо nor Zakaz.ua finds the Russian spelling "Яготинский"; search for "Яготинське".</td></tr>
+        <tr><td class="item">Snickers</td><td class="times">×9</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API 489 kcal, Zakaz.ua, Varus, Open Food Facts, proe.info.</td></tr>
+        <tr><td class="item">Non Stop Jungle</td><td class="times">×5</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API 44 kcal, Zakaz.ua 44 kcal, Open Food Facts.</td></tr>
+        <tr><td class="item">BioTechUSA Протеин</td><td class="times">×5</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API, 100% Pure Whey at 384 kcal. biotechusa.com.ua lists every flavour. Values vary by flavour and the log does not say which.</td></tr>
+        <tr><td class="item">Молокія Молоко 2,5%</td><td class="times">×4</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API by barcode 4820045706097, 53 kcal. Zakaz.ua 53 kcal. Молокія's own catalogue has no numbers and its Open Food Facts entry is empty.</td></tr>
+        <tr><td class="item">Lay's Чипси</td><td class="times">×4</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API, Zakaz.ua, Open Food Facts, proe.info. Flavour not in the log; values run 516 to 527 kcal.</td></tr>
+        <tr><td class="item">Соус Солодкий Чилі, Чумак Соус Солодкий Чилі</td><td class="times">×4</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>chumak.com and Сільпо agree on 170 kcal. Open Food Facts says 168, a 225 g Zakaz.ua listing says 116.</td></tr>
+        <tr><td class="item">Супер Тост Злаковий</td><td class="times">×2</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API and Zakaz.ua, both 320 kcal. Київхліб publishes the same line on kyivkhlib.ua.</td></tr>
+        <tr><td class="item">Сир Твердий Голландія, Комо Сир Твердий Голландія</td><td class="times">×3</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>komo.ua, Сільпо API and Zakaz.ua, all 341 kcal.</td></tr>
+        <tr><td class="item">Nestle KitKat Chunky Peanut Butter 42 g</td><td class="times">×2</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Open Food Facts, 528 kcal.</td></tr>
+        <tr><td class="item">Яготинський Айран</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Zakaz.ua 35 kcal, milkalliance.com.ua.</td></tr>
+        <tr><td class="item">Хрещатик Морозиво Пломбір</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API 236 kcal, Zakaz.ua 230 kcal. limo.ua blocks scripts with Cloudflare.</td></tr>
+        <tr><td class="item">Ходорівський М'ясо Тушковане Свинина</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API, 330 kcal. The producer's own page lists composition only.</td></tr>
+        <tr><td class="item">Торчин Кетчуп Лагідний, Кетчуп Лагидный</td><td class="times">×2</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>torchyn.ua and Сільпо API, 98 kcal. Open Food Facts and proe.info too.</td></tr>
+        <tr><td class="item">Sandora Сік</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API and Zakaz.ua, orange at 50 kcal. The log does not name the flavour.</td></tr>
+        <tr><td class="item">Non Stop Энергетик</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API 42 kcal, Zakaz.ua 44 kcal.</td></tr>
+        <tr><td class="item">Nestle Lion 42 г</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API, 491 kcal.</td></tr>
+        <tr><td class="item">Nestle KitKat</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API, 516 kcal.</td></tr>
+        <tr><td class="item">Jagermeister Ликер</td><td class="times">×1</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>Сільпо API and Zakaz.ua, 250 kcal.</td></tr>
+        <tr><td class="item">Volfas Engelman IPA</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>Сільпо carries it but the value reads 3,8/15,9, a data-entry error. Open Food Facts has other Volfas Engelman beers.</td></tr>
+        <tr><td class="item">Козуб Сулугуні, Козуб Сир Розсільний Сулугуні</td><td class="times">×2</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>kozub.com.ua shows КБЖУ for other sulguni variants. Zakaz.ua has the smoked braid at 255 kcal.</td></tr>
+        <tr><td class="item">Море Пива Кальмар Стружка</td><td class="times">×2</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>Only a similar Fish House squid snack on Open Food Facts, 230 kcal. Море Пива is a retailer and publishes nothing.</td></tr>
+        <tr><td class="item">Snickers Peanut Butter Crunchy</td><td class="times">×2</td><td class="stat"><span class="chip chip-no">Not found</span></td><td>No name match in any API. The regular Snickers range is on Сільпо and Zakaz.ua.</td></tr>
+        <tr><td class="item">Favore Рулет з Індички Бургунд</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>The exact item is on tablycjakalorijnosti.com.ua, which lists 162 Favore products and forbids copying. No producer site.</td></tr>
+        <tr><td class="item">Baker House Лаваш Класичний Круглий</td><td class="times">×1</td><td class="stat"><span class="chip chip-no">Not found</span></td><td>No producer site, likely a retailer private label. Generic лаваш on Open Food Facts is 280 kcal.</td></tr>
+        <tr><td class="item">Premium Butcher Чак Ай Ролл</td><td class="times">×1</td><td class="stat"><span class="chip">Generic table</span></td><td>A raw beef cut from a butcher, so a composition table for beef chuck is the right source.</td></tr>
+
+        <tr class="group"><td colspan="4">Supermarket own brands and ready meals</td></tr>
+        <tr><td class="item">Своя Линия Печиво Цукрове "Загора до чаю"</td><td class="times">×2</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>АТБ's site blocks scripts. Open Food Facts and tablycjakalorijnosti.com.ua list other Своя Лінія products.</td></tr>
+        <tr><td class="item">Своя Лінія Наполеон</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>The exact item is on tablycjakalorijnosti.com.ua, which has 1,159 Своя Лінія pages. АТБ's own pages show КБЖУ in Google snippets but block scripts.</td></tr>
+        <tr><td class="item">Власна Випічка Круасан</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>Сільпо API carries its bakery croissants, the almond one at 480 kcal. tablycjakalorijnosti.com.ua has the logged item. The log does not say which croissant.</td></tr>
+        <tr><td class="item">Фора Мафін з Беконом, Яйцем та Сиром</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>fora.ua renders with JavaScript. Open Food Facts has other Фора ready meals: a chicken sandwich at 216 kcal, pizza at 238.</td></tr>
+        <tr><td class="item">Галя Балувана Сирники Класичні</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>The brand site lists names only. Open Food Facts and tablycjakalorijnosti.com.ua have other Галя Балувана items.</td></tr>
+        <tr><td class="item">Галя Балувана Жульєн з Куркою та Грибами</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>The exact item is on tablycjakalorijnosti.com.ua, which has 779 Галя Балувана pages. The brand site shows no numbers.</td></tr>
+        <tr><td class="item">Мама Манана Хачапурі по-Мегрельськи</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>mamamanana.com.ua loads values with JavaScript. A search snippet quoted 602 kcal per khachapuri.</td></tr>
+
+        <tr class="group"><td colspan="4">Chain dishes</td></tr>
+        <tr><td class="item">KFC Соло Бакет, KFC 8 Гострих Крилець, KFC 3 Гострі Крильця</td><td class="times">×3</td><td class="stat"><span class="chip chip-yes">Exact</span></td><td>KFC Україна nutrition PDF, per item.</td></tr>
+        <tr><td class="item">Окко Хот-Дог</td><td class="times">×1</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>OKKO publishes nothing. calorize.com.ua has it with full КБЖУ.</td></tr>
+        <tr><td class="item">Багато Лосося Філадельфія з Лососем, з Вугрем та Полуницею</td><td class="times">×2</td><td class="stat"><span class="chip chip-part">Partial</span></td><td>The chain shows no numbers. Сільпо's ready-made Філадельфія rolls, at 206 and 243 kcal per 100 g, are the nearest proxies.</td></tr>
+        <tr><td class="item">Pizza Day Піца 7 Сирів</td><td class="times">×1</td><td class="stat"><span class="chip chip-no">Not found</span></td><td>Pizza Day publishes no values. Use a generic cheese pizza.</td></tr>
+        <tr><td class="item">Poke Oke Рамен з Куркою</td><td class="times">×1</td><td class="stat"><span class="chip chip-no">Not found</span></td><td>No website, only Instagram. Use a generic chicken ramen.</td></tr>
+
+        <tr class="group"><td colspan="4">Generic foods and dishes</td></tr>
+        <tr><td class="item">Куряче Філе, Курка запечена, Відбивна Куряча, Індиче м'ясо запечене, Тунець печений</td><td class="times">×14</td><td class="stat"><span class="chip">Generic table</span></td><td>USDA FDC, CIQUAL roast chicken, UK CoFID.</td></tr>
+        <tr><td class="item">М'ясо голуба зі шкірою</td><td class="times">×1</td><td class="stat"><span class="chip">Generic table</span></td><td>USDA "Squab, meat and skin", CoFID roasted pigeon, CIQUAL pigeon.</td></tr>
+        <tr><td class="item">Борщ з Квасолею, Борщ Вегетаріанський</td><td class="times">×2</td><td class="stat"><span class="chip">Generic table</span></td><td>USDA FNDDS "Soup, borscht". No European table has borscht.</td></tr>
+        <tr><td class="item">Окрошка</td><td class="times">×1</td><td class="stat"><span class="chip">Generic table</span></td><td>Only crowd entries on Open Food Facts and Russian calorie sites. Weakest generic item in the log; compute it from its ingredients.</td></tr>
+        <tr><td class="item">Шаурма з Куркою</td><td class="times">×1</td><td class="stat"><span class="chip">Generic table</span></td><td>CIQUAL "Sandwich grec ou kebab", Swiss "Kebab im Fladenbrot". Döner Маркет publishes 167 kcal on its product page.</td></tr>
+        <tr><td class="item">Піца з м'ясом і овочами, Буріто з яловичиною і квасолею, Шоколадний торт</td><td class="times">×3</td><td class="stat"><span class="chip">Generic table</span></td><td>USDA FNDDS survey dishes.</td></tr>
+        <tr><td class="item">Пиво, Яблучний сидр, Коктейль Лонг-айленд, Лимонад</td><td class="times">×9</td><td class="stat"><span class="chip">Generic table</span></td><td>USDA FNDDS. Carlsberg Україна and Опілля publish values for their own beers.</td></tr>
+        <tr><td class="item">Кава Лате, Молочний коктейль, Яблучний сік</td><td class="times">×3</td><td class="stat"><span class="chip">Generic table</span></td><td>USDA FNDDS, CIQUAL.</td></tr>
+        <tr><td class="item">Соєвий соус, Цукор, Соняшникова олія, Оливкова олія, Яйце</td><td class="times">×12</td><td class="stat"><span class="chip">Generic table</span></td><td>Any composition table. Branded versions are on the retail APIs, for example Олейна oil at 900 kcal.</td></tr>
+        <tr><td class="item">Білий хліб, Сир Гауда, Сосиска, Сирні Кульки</td><td class="times">×6</td><td class="stat"><span class="chip">Generic table</span></td><td>CIQUAL, Swiss table, CoFID. Ятрань sausages are 250 kcal on Open Food Facts and yatran.com.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section class="block" id="catalogue-block">
+  <div class="block-head">
+    <span class="eyebrow">Full catalogue</span>
+    <h2>Every source found</h2>
+    <p class="muted">Yellow tags are items from your diary confirmed on that source. Evidence under each name says how the row was verified: a live request, search-engine snippets only, or the vendor's own claim.</p>
+  </div>
+  <div class="controls">
+    <div class="search">
+      <label for="q" class="eyebrow">Filter</label>
+      <input id="q" type="search" placeholder="Snickers, API, ODbL, KFC…" autocomplete="off">
+    </div>
+    <label for="only-kbzhu"><input id="only-kbzhu" type="checkbox"> Full КБЖУ only</label>
+    <label for="only-free"><input id="only-free" type="checkbox"> Free or free tier only</label>
+    <span id="shown" aria-live="polite"></span>
+  </div>
+  <nav class="jump" id="jump" aria-label="Jump to category"></nav>
+  <div id="catalogue"></div>
+</section>
+
+<section class="block" id="dead-ends">
+  <div class="block-head">
+    <span class="eyebrow">Checked and rejected</span>
+    <h2>Dead ends</h2>
+    <p class="muted">Sources that exist but publish no numbers, block automated access, or turned out to be the wrong kind of data. Listed so nobody checks them twice.</p>
+  </div>
+  <div class="dead" id="dead"></div>
+</section>
+
+<section class="block" id="method">
+  <div class="block-head">
+    <span class="eyebrow">Method and caveats</span>
+    <h2>How this was put together</h2>
+  </div>
+  <div class="prose">
+    <p>Seven research agents worked in parallel, one per area: supermarkets, restaurants, out-of-home food, producers, open databases, calorie apps and marketplaces. Two follow-up passes went after the retailers and chains the first round could not reach. Agents opened real product pages, sitemaps, PDFs and API responses with curl and recorded whether numbers were actually present, not just promised.</p>
+    <p>I re-ran the claims that mattered most by hand. The agents contradicted each other twice. One reported that Сільпо's API has no nutrition because it only read the search results; the product detail endpoint returns full КБЖУ. Another reported no kcal on Львівські круасани; the menu page shows 31 values per 100 g.</p>
+    <p>Before building on any of this, keep these in mind:</p>
+    <ul>
+      <li>A search API's first hit is not a match. Сільпо's top result for "Лимонад" was Fairy lemon dish soap, and "Яйце" returned butter. Match on barcode where one exists, otherwise score brand plus name.</li>
+      <li>Sources disagree on values. Чумак sweet chili sauce is 170 kcal on chumak.com and Сільпо, 168 on Open Food Facts and 116 on a 225 g Zakaz.ua listing.</li>
+      <li>Your FatSecret entries mix Ukrainian and Russian spellings: Яготинский, Лагидный, Своя Линия. The retail APIs index Ukrainian names only.</li>
+      <li>Cloudflare blocks scripted access to АТБ, Rozetka, limo.ua and Fineli. Russian-hosted calorie sites never completed a connection. Rows for these rely on search snippets.</li>
+      <li>Access is not permission. Zakaz.ua and tablycjakalorijnosti.com.ua forbid copying. Open Food Facts, USDA, CIQUAL, CoFID and the Swiss table allow reuse under stated licenses. Most retailer and producer sites state no license at all.</li>
+      <li>The Soviet Skurikhin tables and the Russian calorie sites sit under dead ends. The scans have unclear copyright, and they are Russian-origin data.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>Compiled 13 September 2026 for calbot. Sizes, prices and terms change; recheck a source before building on it.</footer>
+</div>
+
+<script type="application/json" id="data-sources">
+[
+  {
+    "name": "Сільпо",
+    "url": "https://silpo.ua",
+    "category": "grocery",
+    "type": "Supermarket catalogue and commerce JSON API",
+    "whats_there": "Full grocery and ready meal catalogue, own brands Премія, Власна Випічка, Повна Чаша. The commerce API sf-ecom-api.silpo.ua exposes search and a detail endpoint per product.",
+    "kbzhu": "yes",
+    "kbzhu_note": "GET sf-ecom-api.silpo.ua/v1/uk/branches/00000000-0000-0000-0000-000000000000/products/{externalProductId} returns attributeGroups key nutrient with calorie as a kcal/kJ string, plus proteins, fats, carbohydrates per 100 g. Verified live on Яготинське butter, 748/3075. Use the numeric externalProductId, not the UUID id, for this lookup.",
+    "access": "JSON API, no key, plus HTML site blocked by Cloudflare for curl",
+    "size": "about 71,600 food items across food relevant categories, from a 28 category commerce search index",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found. Site terms forbid copying without consent.",
+    "diary": [
+      "Snickers Snickers",
+      "Non Stop Jungle",
+      "BioTechUSA Протеин",
+      "Молокія Молоко 2,5%",
+      "Lay's Чипси",
+      "Соус Солодкий Чилі",
+      "Чумак Соус Солодкий Чилі",
+      "Супер Тост Злаковый",
+      "Сир Твердий Голландія",
+      "Комо Сир Твердий Голландія",
+      "Хрещатик Морозиво Пломбір",
+      "Ходорівський Мʼясо Тушковане Свинина",
+      "Торчин Кетчуп Лагидный",
+      "Кетчуп Лагидный",
+      "Sandora Сік",
+      "Non Stop Энергетик",
+      "Nestle Lion 42г",
+      "Nestle Kitkat",
+      "Jagermeister Ликер"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Сільпо MCP server",
+    "url": "https://ai-factory.silpo.ua/docs/mcp",
+    "category": "grocery",
+    "type": "Model Context Protocol server, experimental",
+    "whats_there": "Official MCP endpoint at mcp.silpo.ua/mcp exposing a silpo_get_product_details tool documented to return the full product card, composition, nutritional value, attributes, images.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "Documentation promises nutrition value but requires OAuth 2.1 with PKCE and apparent AI Factory hackathon registration, so the exact field schema was not confirmed live.",
+    "access": "MCP over HTTPS, OAuth 2.1, hackathon accounts only",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "Hackathon participants only. Registration closed 2026-09-01, program runs to 2026-09-30.",
+    "license": "No license found. Docs say all rights reserved.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Zakaz.ua",
+    "url": "https://zakaz.ua",
+    "category": "grocery",
+    "type": "Multi retailer grocery delivery platform API",
+    "whats_there": "White label storefronts for many Ukrainian chains including Novus, Auchan, METRO, ЕКО маркет, Таврія В, Megamarket, Ultramarket, Космос. GET /stores lists 67 branches across 21 chains: alcohub, auchan, biotus, chudomarket, cosmos, ekomarket, epicentr, grono, ideal, kharkiv, masterzoo, megamarket, metro, novus, onde, tavriav, torba, ultramarket, vostorg, winetime, zaraz.",
+    "kbzhu": "yes",
+    "kbzhu_note": "GET stores-api.zakaz.ua/stores/{id}/products/search?q= returns nutrition_facts with ingredient_energy, ingredient_protein, ingredient_fat, ingredient_carbohydrates. Verified live on Чумак Лагідний ketchup, 98 kcal.",
+    "access": "JSON API, no key",
+    "size": "about 16,826 products for one Novus branch, 482010105",
+    "cost": "free",
+    "cost_note": "",
+    "license": "zakaz.ua/uk/terms forbids reproduction, copying or reuse without consent.",
+    "diary": [
+      "Яготинский Молоко 1%",
+      "Snickers Snickers",
+      "Non Stop Jungle",
+      "Молокія Молоко 2,5%",
+      "Lay's Чипси",
+      "Соус Солодкий Чилі",
+      "Чумак Соус Солодкий Чилі",
+      "Супер Тост Злаковый",
+      "Сир Твердий Голландія",
+      "Комо Сир Твердий Голландія",
+      "Яготинский Айран",
+      "Хрещатик Морозиво Пломбір",
+      "Sandora Сік",
+      "Non Stop Энергетик",
+      "Jagermeister Ликер"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Varus",
+    "url": "https://varus.ua",
+    "category": "grocery",
+    "type": "Magento supermarket catalogue, HTML only",
+    "whats_there": "Grocery catalogue, 113 locations, own brand categories under harchovi-dobavki, nosugar-food, sport-food paths.",
+    "kbzhu": "yes",
+    "kbzhu_note": "In embedded JSON on all 3 food products checked",
+    "access": "HTML, embedded JSON blob in a script tag, no documented public API",
+    "size": "81,437 URLs in varus.ua/media/sitemap/sitemap.xml, food and non-food mixed",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Snickers Snickers"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "МАУДАУ",
+    "url": "https://maudau.com.ua",
+    "category": "grocery",
+    "type": "Supermarket online catalogue",
+    "whats_there": "Grocery catalogue with a nutrition sentence embedded in each product description, for example fats, proteins, carbs and kcal as plain text.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Values shown only as free text inside the HTML description, not structured fields, so extraction needs text parsing.",
+    "access": "HTML only, no structured API found",
+    "size": "product sitemap suggests up to a few million URLs, likely inflated by per-city duplicates, true count unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Чумак Соус Солодкий Чилі"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Епіцентр К",
+    "url": "https://epicentrk.ua",
+    "category": "grocery",
+    "type": "Hypermarket online catalogue, food section",
+    "whats_there": "Grocery and hypermarket catalogue with a nutrition sentence inside a product characteristic field, per 100 g fats, proteins, salt.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Values are a free text characteristic string, not separate numeric fields.",
+    "access": "HTML only",
+    "size": "unknown, many sitemap shards not totalled",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Чумак Соус Солодкий Чилі"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "KFC Україна",
+    "url": "https://www.kfc.ua/nutritional-values",
+    "category": "foodservice",
+    "type": "Restaurant nutrition PDF",
+    "whats_there": "Full menu nutrition table for burgers, chicken pieces and sides, linked from the site and hosted on a Webflow CDN.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed by downloading the PDF and running pdftotext, kcal, kJ, fat, saturated fat, carbs, sugars, protein, salt per item.",
+    "access": "PDF, linked from a normal HTML page",
+    "size": "5 page PDF, roughly 40 to 50 rows",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license stated.",
+    "diary": [
+      "KFC Соло Бакет",
+      "KFC 8 Гострих Крилець",
+      "KFC 3 Гострі Крильця"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "McDonald's Україна",
+    "url": "https://ukraine.mcdonalds.ua/static/restaurants/consist.pdf",
+    "category": "foodservice",
+    "type": "Official nutrition PDF plus web calculator",
+    "whats_there": "Full menu composition and kcal per serving for every item. A separate nutrition calculator exists at mcdonalds.com/ua/uk-ua/eat/nutrition_calculator.html.",
+    "kbzhu": "yes",
+    "kbzhu_note": "22 page official PDF, created 2026-07-22, composition plus kcal per serving. The web calculator timed out from our network so it was not verified directly.",
+    "access": "PDF",
+    "size": "22 pages, full Ukrainian menu",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Sushi Master",
+    "url": "https://kyiv.sushi-master.ua/menu/rolls",
+    "category": "foodservice",
+    "type": "Sushi delivery site with embedded product JSON",
+    "whats_there": "Rolls and set catalogue. Category pages embed per product JSON with calorie, proteins, fat, carbohydrates and weight, not rendered as visible text.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed real numeric values inside the page data blob, for example calorie 508.8, but nothing shown as visible kcal text to a human visitor.",
+    "access": "HTML with embedded JSON, no documented API",
+    "size": "sitemap lists 276 URLs, about 10 to 15 real menu categories",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Sushi Icons",
+    "url": "https://sushiicons.com.ua/baked-rolls/baked-roll-with-salmon",
+    "category": "foodservice",
+    "type": "Sushi ordering site, visible nutrition text",
+    "whats_there": "Baked rolls, bowls, salads and other categories, with kcal per 100 g and per serving shown directly on product cards.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed visible text, for example 122 kcal per 100 g and 215 kcal per serving.",
+    "access": "HTML, values rendered as visible text",
+    "size": "dozens of products across several categories",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Салатейра",
+    "url": "https://salateira.ua/menu/donery/",
+    "category": "foodservice",
+    "type": "Fast casual chain menu, visible nutrition text",
+    "whats_there": "Donery, salads, pasta, soups and desserts, with weight and kcal per 100 g shown per item as visible text.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on category pages, for example 224 g, 317.1 kcal per 100 g.",
+    "access": "HTML",
+    "size": "11 menu category pages, dozens of items",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Döner Маркет",
+    "url": "https://donermarket.com.ua/products/shaurma",
+    "category": "foodservice",
+    "type": "Shawarma chain site",
+    "whats_there": "Shawarma product pages with kcal and protein shown directly under each product.",
+    "kbzhu": "partial",
+    "kbzhu_note": "Confirmed kcal and protein on a real product page, fat and carbs not confirmed.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Шаурма з Куркою"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Мама Манана",
+    "url": "https://mamamanana.com.ua",
+    "category": "foodservice",
+    "type": "Georgian restaurant chain, Next.js app",
+    "whats_there": "Full khachapuri and khinkali menu, including a Мегрельский variant, also sold as frozen retail packs.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "Front end has kcal, protein, fat and carb fields; dish data loads client-side and was not reached",
+    "access": "HTML, JS rendered Next.js app, no numeric values in raw HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Мама Манана Хачапурі по-Мегрельски"
+    ],
+    "evidence": "search"
+  },
+  {
+    "name": "UPG",
+    "url": "https://upg.choiceqr.com/menu/section:restoran",
+    "category": "outofhome",
+    "type": "Gas station cafe online menu, ChoiceQR",
+    "whats_there": "Restaurant level food menu at UPG stations, breakfasts, mains, salads.",
+    "kbzhu": "partial",
+    "kbzhu_note": "kcal per dish shown, embedded in page JSON as kcal 359, but no protein, fat or carb fields.",
+    "access": "HTML page with embedded JSON, no documented API",
+    "size": "71 dishes with a kcal field",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Хлібний",
+    "url": "https://khlebniy.com.ua",
+    "category": "outofhome",
+    "type": "Bakery cafe, single Kyiv location",
+    "whats_there": "Sandwiches, breakfasts, pastries with a full per 100 g nutrition widget.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Embedded JSON menu widget with kcal, fat, carbs, protein per item.",
+    "access": "HTML page with embedded JSON",
+    "size": "126 items with a kcal field",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Київхліб",
+    "url": "https://kyivkhlib.ua",
+    "category": "outofhome",
+    "type": "Bakery producer catalogue",
+    "whats_there": "Bread, croissants, waffles, bagels and toast bread. Product pages show full protein, fat, carb and kcal values.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on a light toast bread page, 1247 kJ, 294 kcal per 100 g, 3.7 g fat.",
+    "access": "HTML, WordPress with a Yoast product sitemap",
+    "size": "281 product URLs in the product sitemap, company states 250 plus SKUs",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Супер Тост Злаковый"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Львівські круасани",
+    "url": "https://lvivcroissants.com/ua/menu/",
+    "category": "outofhome",
+    "type": "Bakery cafe franchise site, 189 outlets",
+    "whats_there": "Croissant sandwiches and drinks menu, with weight and kcal per 100 g shown per item.",
+    "kbzhu": "partial",
+    "kbzhu_note": "31 kcal values on the page, weight and kcal per 100 g shown, no protein, fat or carbs.",
+    "access": "HTML",
+    "size": "about 101 menu items",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Львівська майстерня шоколаду",
+    "url": "https://lvivchocolate-vg.choiceqr.com/online-menu",
+    "category": "outofhome",
+    "type": "Confectionery cafe chain, ChoiceQR menu",
+    "whats_there": "Handmade chocolate brand with cafe locations, cafe menu carries a kcal field per item.",
+    "kbzhu": "partial",
+    "kbzhu_note": "ChoiceQR menu has a kcal field for 5 items, main marketing site only mentions calorie content once, no protein, fat or carbs.",
+    "access": "HTML with embedded JSON",
+    "size": "5 items with a kcal field on the cafe menu checked",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Milk Bar",
+    "url": "https://milkbar.choiceqr.com/section:menyu",
+    "category": "outofhome",
+    "type": "Cafe and confectionery chain, ChoiceQR menu",
+    "whats_there": "Sandwiches, breakfasts, desserts, milkshakes, with a kcal field per dish.",
+    "kbzhu": "partial",
+    "kbzhu_note": "kcal field per dish, no protein, fat or carbs, same ChoiceQR pattern as UPG.",
+    "access": "HTML page with embedded JSON",
+    "size": "32 items with a kcal field",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "E2GO",
+    "url": "https://e2go.com.ua",
+    "category": "outofhome",
+    "type": "Office and healthy meal delivery",
+    "whats_there": "Salads, bowls, sandwiches, soups, desserts and smoothies, plus weight loss and maintenance programs.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on a dish page, protein, fat, carbs and kcal all present.",
+    "access": "HTML",
+    "size": "89 URLs in sitemap, about 40 distinct dish pages",
+    "cost": "freemium",
+    "cost_note": "paid meals, free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Racion",
+    "url": "https://www.racion.com.ua",
+    "category": "outofhome",
+    "type": "Office meal delivery and frozen desserts",
+    "whats_there": "Daily ration boxes from 1200 to 2200 kcal, truffles, vareniki, ice cream, cookies.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Ration pages show a kcal target plus protein, fat, carb text.",
+    "access": "HTML",
+    "size": "63 URLs in sitemap",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "EasyEat",
+    "url": "https://www.easyeat.com.ua",
+    "category": "outofhome",
+    "type": "Healthy meal delivery",
+    "whats_there": "Ready meal plans, kcal mentioned throughout the homepage.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "105 kcal occurrences on the homepage but no per dish page was opened to confirm structured protein, fat, carb values.",
+    "access": "HTML",
+    "size": "unknown, likely JS driven catalogue",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Eater",
+    "url": "https://eater.com.ua/uk/",
+    "category": "outofhome",
+    "type": "Healthy meal delivery, precise macro plans",
+    "whats_there": "Meal plans marketed around precise macros, kcal mentioned on the site.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "kcal and calorie content text both present, no per dish structured value confirmed.",
+    "access": "HTML, Yoast sitemap index",
+    "size": "unknown",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "5 Блюд",
+    "url": "https://5blyud.com.ua",
+    "category": "outofhome",
+    "type": "Healthy meal delivery",
+    "whats_there": "Ready meal sets, kcal mentioned on the homepage.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "35 kcal occurrences on the homepage, no per dish page confirmed.",
+    "access": "HTML, Yoast sitemap index",
+    "size": "unknown",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Healthy Food, healthy-food.com.ua",
+    "url": "https://healthy-food.com.ua",
+    "category": "outofhome",
+    "type": "Diet meal plan subscription service",
+    "whats_there": "Diet meal plans such as FitLife and Keto, sold by daily program.",
+    "kbzhu": "partial",
+    "kbzhu_note": "kcal shown per whole day program, 1200, 1400, 1600, 2400, 2600, plus a client side protein, fat, carb target calculator. No per dish or per 100 g values found.",
+    "access": "HTML",
+    "size": "a handful of diet plans, not a food database",
+    "cost": "paid",
+    "cost_note": "from 900 UAH per day per program tier",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Healthy Food, healthyfood.co.ua",
+    "url": "https://healthyfood.co.ua",
+    "category": "outofhome",
+    "type": "Healthy meal delivery, ПП plans",
+    "whats_there": "1200 to 1600 kcal meal plans, 4 plus meals per day.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "47 plus kcal and calorie content occurrences on the homepage, no per dish page confirmed.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Yello Food",
+    "url": "https://www.yello-food.com.ua",
+    "category": "outofhome",
+    "type": "Healthy meal delivery, ПП plans",
+    "whats_there": "1100 to 1500 kcal plans, 28 day no repeat menus.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "26 plus kcal occurrences on the homepage, no per dish page confirmed.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Avocado Food",
+    "url": "https://avocado-food.com.ua",
+    "category": "outofhome",
+    "type": "Healthy meal delivery, ПП plans",
+    "whats_there": "Plans for athletes, weight loss, pregnancy, vegetarians and office workers.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "kcal mentions on the homepage, no per dish page confirmed.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "freemium",
+    "cost_note": "free to browse",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Три ведмеді",
+    "url": "https://3bears.ua",
+    "category": "outofhome",
+    "type": "Frozen food and ice cream producer shop",
+    "whats_there": "Vareniki, pelmeni and ice cream, product pages have a full nutrition table.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Protein, fat, carb labels and an energy value in kJ, no literal kcal string but a full nutrition table.",
+    "access": "HTML",
+    "size": "about 126 product URLs under polufabrikaty and icecream categories, 201 total sitemap entries",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Яготинське",
+    "url": "https://milkalliance.com.ua",
+    "category": "producers",
+    "type": "Dairy producer catalogue",
+    "whats_there": "Milk, ryazhenka, ayran, cheese product pages.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on the 1% milk page, 166 kJ, 39 kcal, fats 1.0 g, carbs 4.7 g, protein 2.9 g per 100 g.",
+    "access": "HTML",
+    "size": "843 URLs in sitemap",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Яготинский Молоко 1%"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Галичина",
+    "url": "https://galychyna.com.ua/production/galychyna/",
+    "category": "producers",
+    "type": "Dairy producer overview page",
+    "whats_there": "Cheese, butter and dairy category ranges shown as kcal per category, not a full per SKU catalogue.",
+    "kbzhu": "yes",
+    "kbzhu_note": "69 to 70 kcal for soft items, 345 to 360 kcal for hard cheese, shown inline as X kcal over Y kJ.",
+    "access": "HTML",
+    "size": "curated overview, only 6 URLs in sitemap",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Комо",
+    "url": "https://komo.ua/uk/products/hollandiya",
+    "category": "producers",
+    "type": "Cheese producer catalogue",
+    "whats_there": "Hard and semi hard cheese product pages.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on the Голландія page, 1418 kJ, 341 kcal per 100 g, plus a separate fats, carbs, protein table.",
+    "access": "HTML",
+    "size": "92 URLs in sitemap, about 25 named cheese product pages",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Комо Сир Твердий Голландія"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Козуб",
+    "url": "https://kozub.com.ua",
+    "category": "producers",
+    "type": "Cheese producer online shop",
+    "whats_there": "Sulguni, brynza and cheese snack product pages.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on a barbecue flavour sulguni solomka page, energy value per 100 g of product, kcal 224.",
+    "access": "HTML, own webshop",
+    "size": "6,250 URLs in sitemap, includes shop and cart pages",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Козуб Сулугуні"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Чумак",
+    "url": "https://chumak.com/product/70",
+    "category": "producers",
+    "type": "Sauce and canned goods producer catalogue",
+    "whats_there": "Sauces, ketchup and canned goods product pages.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on a sweet chili sauce page, 711 kJ, 170 kcal per 100 g, plus a full fats, carbs, protein table.",
+    "access": "HTML",
+    "size": "sitemap.xml returns 404 on the main domain, product pages reachable directly",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Чумак Соус Солодкий Чилі"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Торчин",
+    "url": "https://www.torchyn.ua/products/lahidnyi",
+    "category": "producers",
+    "type": "Ketchup and sauce producer catalogue",
+    "whats_there": "Ketchups, sauces, mayonnaise product pages.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on the Лагідний ketchup page, energy value 98 kcal per 100 g, plus fats and carbs.",
+    "access": "HTML",
+    "size": "638 URLs in sitemap",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Торчин Кетчуп Лагидный",
+      "Кетчуп Лагидный"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Верес",
+    "url": "https://www.veresfood.com/product/goroshok-zelenyj",
+    "category": "producers",
+    "type": "Canned goods producer catalogue",
+    "whats_there": "Canned vegetables, sauces, lecho product pages.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on a green peas page, 161.0 kJ, 38.4 kcal per 100 g.",
+    "access": "HTML",
+    "size": "119 URLs in sitemap",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Ятрань",
+    "url": "https://yatran.com/zapechena-produkcya/kovbasa-ukranska-smajena/",
+    "category": "producers",
+    "type": "Sausage and meat producer catalogue",
+    "whats_there": "Sausages and meat products, full energy plus protein and fat ranges per product.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on Ковбаса Українська смажена, 385 kcal, 1611 kJ per 100 g, protein at least 15.9 g, fat at most 35.7 g.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Алан",
+    "url": "https://alan.ua/product/evreyska-sc/",
+    "category": "producers",
+    "type": "Sausage producer catalogue",
+    "whats_there": "Sausage product pages with full nutrition values.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on the Єврейська sausage page, 1672 kJ, 403 kcal per 100 g.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Конті",
+    "url": "https://konti.ua/catalog/product/super-kontik-vanilla-270",
+    "category": "producers",
+    "type": "Confectionery producer catalogue",
+    "whats_there": "Wafer cakes and candy product pages with a nutrition table.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Page shows an energy value field and kcal per kJ field per 100 g.",
+    "access": "HTML",
+    "size": "sitemap.xml only lists 3 URLs, real catalogue is browsable by category path",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "BioTechUSA storefront",
+    "url": "https://biotechusa.com.ua",
+    "category": "producers",
+    "type": "Sport nutrition storefront, OpenCart",
+    "whats_there": "Whey protein and supplement product pages with full nutrition tables.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on 100% Pure Whey, 457 kJ, 108 kcal per serving. Page title suggests this storefront is shared with a reseller, sportshop.com.ua, not BioTechUSA's own corporate domain, though the data is copied from the packaging facts panel.",
+    "access": "HTML, OpenCart",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "BioTechUSA Протеин"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Power Pro",
+    "url": "https://powerpro.in.ua",
+    "category": "producers",
+    "type": "Protein bar and powder producer catalogue",
+    "whats_there": "Protein bars, powders and snacks, with embedded per product nutrition JSON.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Dozens of products carry embedded values such as energy value 1904 kJ, 455 kcal, protein grams 30.",
+    "access": "HTML with embedded JSON nutrition table data",
+    "size": "sitemap.xml lists only 1 URL, but dozens of product pages are reachable by crawling the homepage",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Карлсберг Україна",
+    "url": "https://www.carlsbergukraine.com",
+    "category": "producers",
+    "type": "Beer producer brand site",
+    "whats_there": "Beer brand pages including Львівське and Чернігівське, with nutrition tables per product.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Nutritional value and energy value fields present with numeric values on individual product pages.",
+    "access": "HTML",
+    "size": "large sitemap, count not obtained",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Пиво"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Опілля",
+    "url": "https://opillia.com/product/koryfey-nefiltrovane/",
+    "category": "producers",
+    "type": "Beer, kvas and water producer catalogue",
+    "whats_there": "Beer, kvas and water product pages with a full nutrition table.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on Корифей нефільтроване, 41 kcal per 100 g plus a full nutrition table.",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "proe.info",
+    "url": "https://proe.info/uk/food/",
+    "category": "opendb",
+    "type": "Open barcode indexed product database",
+    "whats_there": "Barcode-indexed product pages for Ukrainian packaged food with КБЖУ, ingredients and E-numbers, run by the Dobavkam.net food-additive reference site. Яготинське and Sandora products are there, Non Stop and Галя Балувана are not.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on pyure-mivina, 170.4 kcal, protein 5.1 g, fat 9.7 g, carbs 51.3 g, and on chipsy-lays by barcode 5900259069924, 527 kcal, 6.2 g protein, 31.4 g fat, 52.6 g carbs.",
+    "access": "HTML pages per product, paginated sitemap",
+    "size": "10,092 /uk/food/ product pages in sitemap",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No dedicated terms or license page found.",
+    "diary": [
+      "Snickers Snickers",
+      "Торчин Кетчуп Лагидный",
+      "Lay's Чипси"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "supermarkets.com.ua",
+    "url": "https://supermarkets.com.ua",
+    "category": "marketplaces",
+    "type": "Multi supermarket price aggregator, OpenCart",
+    "whats_there": "Promo-price aggregator pulling products from МАУДАУ, АТБ, Сільпо, Varus, METRO and Auchan. Nutrition sits in schema.org PropertyValue microdata, with Nova group and Nutri-Score badges.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed structured microdata on an olive oil product, 0.00 g protein, 97.60 g fat, 0.00 g carbs per 100 g.",
+    "access": "HTML with schema.org microdata",
+    "size": "5,904 sitemap URLs, about 2,035 product pages",
+    "cost": "free",
+    "cost_note": "",
+    "license": "robots.txt allows most catalog paths.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Zakaz.ua unofficial GitHub clients",
+    "url": "https://github.com/search?q=zakaz.ua",
+    "category": "marketplaces",
+    "type": "Open source API wrapper repositories",
+    "whats_there": "Community client and scraper repos, scandy5/zakaz-dot-ua, Kapranov/zakaz, qualterz/apizakazua, wrapping the stores-api.zakaz.ua endpoints.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Data quality depends on the underlying Zakaz.ua API, which does carry nutrition_facts.",
+    "access": "Source code, free",
+    "size": "small client libraries, not datasets",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Individual repo licenses not checked.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Silpo unofficial GitHub clients",
+    "url": "https://github.com/search?q=silpo",
+    "category": "marketplaces",
+    "type": "Open source API wrapper repositories",
+    "whats_there": "Community client and exporter repos, iYasha/pysilpo, brandonlaguna/silposapi, zakh-d/silpo-api-example, korchasa/silpo-exporter, wrapping sf-ecom-api.silpo.ua.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Data quality depends on the underlying Silpo commerce API, which does carry the nutrient attribute group.",
+    "access": "Source code, free",
+    "size": "small client libraries",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Individual repo licenses not checked.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Go-UPC",
+    "url": "https://go-upc.com",
+    "category": "marketplaces",
+    "type": "Commercial barcode and nutrition API",
+    "whats_there": "Barcode lookup advertising nutrition facts as a returned field, claims 500 million plus products.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "Not spot checked against a real barcode in this pass, found only via search.",
+    "access": "JSON API, paid",
+    "size": "500 million plus products claimed",
+    "cost": "paid",
+    "cost_note": "plans from 19.95 dollars per month",
+    "license": "Commercial terms, not reviewed.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "EAN-Search.org",
+    "url": "https://www.ean-search.org",
+    "category": "marketplaces",
+    "type": "Commercial barcode API",
+    "whats_there": "EAN, GTIN, UPC and ISBN lookup, claims 1.2 billion barcodes.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "Nutrition field presence not confirmed.",
+    "access": "REST API, paid",
+    "size": "1.2 billion barcodes claimed",
+    "cost": "paid",
+    "cost_note": "monthly or yearly billing, free tier details unclear",
+    "license": "Commercial terms, not fully surfaced.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Open Food Facts",
+    "url": "https://world.openfoodfacts.org",
+    "category": "opendb",
+    "type": "Open crowdsourced product database",
+    "whats_there": "Packaged retail products worldwide, scanned by contributors, including Ukrainian brands. Search via api/v2/search and product lookup by barcode via api/v2/product/{barcode}.",
+    "kbzhu": "yes",
+    "kbzhu_note": "kcal, proteins, fat and carbs per 100 g in the nutriments object, field name energy-kcal_100g with a hyphen. Confirmed live for Torchyn ketchup, Yagotynske dairy line, Snickers, Lay's and Non Stop Jungle. Coverage is real but inconsistent, some entries like a Molokija milk barcode have no nutrient fields filled in.",
+    "access": "JSON API, no key, full DB dumps also available as MongoDB, JSONL, CSV, Parquet",
+    "size": "4,746,231 products worldwide, 7,286 tagged Ukraine",
+    "cost": "free",
+    "cost_note": "",
+    "license": "ODbL for the database, DbCL for contents, CC BY-SA for images.",
+    "diary": [
+      "Торчин Кетчуп Лагидный",
+      "Кетчуп Лагидный",
+      "Snickers Snickers",
+      "Lay's Чипси",
+      "Non Stop Jungle",
+      "Яготинский Молоко 1%",
+      "Nestle Kitkat",
+      "Sandora Сік"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "USDA FoodData Central",
+    "url": "https://fdc.nal.usda.gov",
+    "category": "opendb",
+    "type": "US government food composition database",
+    "whats_there": "Foundation Foods, SR Legacy, Survey FNDDS, and Branded Foods datasets, mostly US labeled products.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full macro and micronutrient panels. Branded Foods entries are almost entirely US labeled, so Ukrainian retail brands rarely resolve, generic dishes and international snacks fare better.",
+    "access": "JSON API, free DEMO_KEY works for light use, free registered key removes rate limits, bulk CSV or JSON downloads per dataset",
+    "size": "300,000 plus foods in Branded alone, several hundred thousand combined",
+    "cost": "free",
+    "cost_note": "",
+    "license": "CC0 1.0, public domain.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "UK CoFID",
+    "url": "https://www.gov.uk/government/publications/composition-of-foods-integrated-dataset-cofid",
+    "category": "opendb",
+    "type": "UK government food composition table",
+    "whats_there": "McCance and Widdowson reference nutrient database, 2021 edition plus an older foods file.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full proximates, energy and macros per 100 g. Includes a real pigeon entry and several white bread and chicken entries, no borscht, shawarma, syrniki, khachapuri or napoleon rows.",
+    "access": "direct XLSX download, no API",
+    "size": "about 2,890 food rows on the proximates sheet",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Open Government Licence, free reuse with attribution.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "French CIQUAL",
+    "url": "https://ciqual.anses.fr",
+    "category": "opendb",
+    "type": "French government food composition table",
+    "whats_there": "French national reference nutrient table, 2025 edition, includes kebab sandwich, roasted chicken and soy sauce entries.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full macro and micronutrient panel per 100 g, no borscht, khachapuri, syrniki or napoleon.",
+    "access": "XLS, XLSX, PDF download, no live API",
+    "size": "3,484 foods",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Licence Ouverte, Etalab open license.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "German BLS",
+    "url": "https://www.blsdb.de",
+    "category": "opendb",
+    "type": "German government food composition database",
+    "whats_there": "National nutrient reference database, version 4.0.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Site claims a full nutrient panel, not independently opened, the download page did not expose a direct file link to curl.",
+    "access": "download gated behind a request form or JS, not confirmed",
+    "size": "about 7,140 foods",
+    "cost": "free",
+    "cost_note": "licence fee reportedly dropped in late 2025, not independently confirmed",
+    "license": "Formerly a Max Rubner Institut per seat licence, now stated to be licence and cost free.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Swiss Food Composition Database",
+    "url": "https://naehrwertdaten.ch",
+    "category": "opendb",
+    "type": "Swiss government food composition database",
+    "whats_there": "FSVO and BLV nutrient database, version 7.1, in German, French, Italian and English.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full macros, energy, water and alcohol, most also micronutrients. Includes soy sauce, white bread, kebab and hot dog entries, no borscht, pigeon, syrnik, khachapuri or napoleon.",
+    "access": "direct XLSX download, no API",
+    "size": "1,246 foods",
+    "cost": "free",
+    "cost_note": "commercial use allowed with mandatory source citation",
+    "license": "Free for any use including commercial, with mandatory citation.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Danish Frida",
+    "url": "https://frida.fooddata.dk",
+    "category": "opendb",
+    "type": "Danish government food composition database",
+    "whats_there": "DTU National Food Institute nutrient database, energy plus 130 plus nutrients.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Search UI only, no confirmed public bulk API found, not spot checked in this pass.",
+    "access": "web search UI, no confirmed bulk API",
+    "size": "about 1,300 to 2,000 foods depending on the source cited",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Attribution required on every display or use of data.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Dutch NEVO",
+    "url": "https://nevo-online.rivm.nl",
+    "category": "opendb",
+    "type": "Dutch government food composition database",
+    "whats_there": "Nederlands Voedingsstoffenbestand, energy plus 130 plus nutrients.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Export to Excel or CSV after accepting terms, not spot checked in this pass.",
+    "access": "web tool with export, terms acceptance required",
+    "size": "about 2,328 foods",
+    "cost": "free",
+    "cost_note": "",
+    "license": "CC BY 4.0.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Polish NIZP-PZH tables",
+    "url": "https://www.pzh.gov.pl/uslugi/tabele-wartosci-odzywczej-produktow/",
+    "category": "opendb",
+    "type": "Polish government food composition table",
+    "whats_there": "Tabele wartosci odzywczej produktow spozywczych i potraw, 4th edition, 2017.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full nutrient panel, short free version and a paid full version under a licence agreement.",
+    "access": "XLSX download, short version free",
+    "size": "1,045 products or dishes plus 47 mineral waters",
+    "cost": "freemium",
+    "cost_note": "full version price not published, contact by email",
+    "license": "Full database requires a licence agreement with NIZP-PZH.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Finnish Fineli",
+    "url": "https://fineli.fi",
+    "category": "opendb",
+    "type": "Finnish government food composition database",
+    "whats_there": "National Finnish food composition database, documented open JSON REST API.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Up to 74 nutritional factors per food per documentation, blocked by a Cloudflare challenge from our shell so not independently spot checked.",
+    "access": "documented JSON REST API, blocked by Cloudflare in this pass",
+    "size": "about 4,232 foods plus 1,370 base ingredients",
+    "cost": "free",
+    "cost_note": "",
+    "license": "CC BY 4.0.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Canadian Nutrient File",
+    "url": "https://food-nutrition.canada.ca/cnf-fce/",
+    "category": "opendb",
+    "type": "Canadian government food composition database",
+    "whats_there": "Health Canada reference nutrient database, up to 152 nutrients.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Bulk CSV download blocked by a WAF, interactive search tool not exercised in this pass.",
+    "access": "web search tool, bulk CSV blocked",
+    "size": "over 5,690 foods",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Open Government Licence, Canada.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Australian AFCD",
+    "url": "https://www.foodstandards.gov.au/science-data/food-nutrient-databases/afcd",
+    "category": "opendb",
+    "type": "Australian government food composition database",
+    "whats_there": "FSANZ nutrient database, successor to AUSNUT and NUTTAB, up to 268 nutrients per food.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Excel download, not spot checked in this pass.",
+    "access": "Excel download, no public REST API found",
+    "size": "1,588 foods",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Not independently confirmed on page, FSANZ typically uses CC BY.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "EuroFIR FoodEXplorer",
+    "url": "https://www.eurofir.org/our-tools/foodexplorer/",
+    "category": "opendb",
+    "type": "Meta database federating national tables",
+    "whats_there": "Federates about 40 national European food composition databases behind one search tool.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Nutrition per the underlying national databases, not accessed directly since it is paywalled.",
+    "access": "web portal, pay per view or membership",
+    "size": "aggregates 40 national databases, no single item count published",
+    "cost": "paid",
+    "cost_note": "pay per view for 1 week, 2 weeks or 3 months, or full access via membership, pricing not published",
+    "license": "Each underlying national database keeps its own licence.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "FAO INFOODS",
+    "url": "https://www.fao.org/food-composition/en",
+    "category": "opendb",
+    "type": "Global directory of food composition tables",
+    "whats_there": "Directory of national and regional food composition tables plus FAO's own compiled datasets such as BioFoodComp.",
+    "kbzhu": "partial",
+    "kbzhu_note": "FAO's own compiled datasets show full nutrient panels, the directory itself is mostly links to other national tables already listed here.",
+    "access": "free Excel or PDF downloads for FAO's own datasets, directory links out for the rest",
+    "size": "directory level, size not applicable",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Public, no restrictive terms found.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "OpenNutrition",
+    "url": "https://www.opennutrition.app",
+    "category": "opendb",
+    "type": "Open downloadable generic food dataset",
+    "whats_there": "AI enriched food descriptions cross referenced to USDA, Canadian Nutrient File, Frida and AUSNUT records, generic composition style entries.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed by direct download of the TSV dataset, full nutrient panels. No Ukrainian brand entries found, spot check only found generic entries like chicken breast and protein bar.",
+    "access": "direct TSV download, also mirrored on Kaggle, and via an MCP server",
+    "size": "300,000 plus foods",
+    "cost": "free",
+    "cost_note": "",
+    "license": "ODbL 1.0 plus Database Contents License, requires attribution.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Kaggle nutrition datasets",
+    "url": "https://www.kaggle.com/datasets/trolukovich/nutritional-values-for-common-foods-and-products",
+    "category": "opendb",
+    "type": "Downloadable generic food dataset dump",
+    "whats_there": "Generic and global food composition tables, mostly US and English language generic food names, no Ukrainian brand matches expected.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Per dataset CSV with nutrition values for generic foods only.",
+    "access": "CSV download, Kaggle account required",
+    "size": "about 8,800 items in one dataset, up to about 45,000 in a larger one",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Per dataset Kaggle license, varies by dataset.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "tablycjakalorijnosti.com.ua",
+    "url": "https://www.tablycjakalorijnosti.com.ua",
+    "category": "calsites",
+    "type": "Large calorie table website",
+    "whats_there": "Ukrainian instance of Dine4fit a.s., the Czech operator of kaloricketabulky.cz. A pooled international database with strong Ukrainian brand coverage: 1,159 Своя Лінія pages, 779 Галя Балувана, 333 Власна Випічка, 248 Ласунка, 162 Favore. Base data plus user-submitted photos and recipes.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Individual dish and product pages carry kcal plus protein, fat, carb values, confirmed for own brand items such as Власна Випічка croissants, and for brands like Хрещатик, Ласунка, Кулиничі, Галя Балувана where the producer's own site shows nothing.",
+    "access": "HTML pages, sitemap crawlable, also has a mobile app",
+    "size": "589,526 foodstuff URLs in sitemap",
+    "cost": "freemium",
+    "cost_note": "registration required for tracking features",
+    "license": "Terms page forbids copying, redistributing or reusing the site's content.",
+    "diary": [
+      "Favore Рулет з Індички Бургунд",
+      "Власна Випічка Круасан",
+      "Галя Балувана Жульєн З Куркою Та Грибами",
+      "Галя Балувана Сырники Классические",
+      "Своя Линия Печиво Цукрове Загора до Чаю",
+      "Своя Лінія Наполеон",
+      "Хрещатик Морозиво Пломбір"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "run.kyiv.ua calorie blog",
+    "url": "https://run.kyiv.ua/kfs-kalorijnist-strav-bzhu/",
+    "category": "calsites",
+    "type": "Single page calorie blog post",
+    "whats_there": "Blog posts with full КБЖУ tables per dish for a few chains: KFC on its 2021 menu, Subway, plus ice cream and cheese by brand.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Per its title, not opened in full in this pass.",
+    "access": "HTML",
+    "size": "single page, unknown item count",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Not checked.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "calorize.com.ua",
+    "url": "https://calorize.com.ua",
+    "category": "calsites",
+    "type": "Product pages of a Ukrainian AI calorie app",
+    "whats_there": "Database behind a Ukrainian AI calorie tracker: generic and community-submitted foods with per-100 g КБЖУ, including a fast food category and Окко Хот-Дог. Search needs JavaScript.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Confirmed on the Okko hot dog page, protein, fat, carb and kcal all present.",
+    "access": "HTML pages",
+    "size": "about 97,000 items",
+    "cost": "freemium",
+    "cost_note": "",
+    "license": "No license found.",
+    "diary": [
+      "Окко Хот-Дог"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "CaloriePortal.com",
+    "url": "https://calorieportal.com",
+    "category": "calsites",
+    "type": "Ukrainian facing calorie table site",
+    "whats_there": "Calorie and macro tables and calculators, per its own page title.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "Reachable, not spot checked against a diary item in this pass.",
+    "access": "HTML pages, sitemap present",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Not checked.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "EдаPlus",
+    "url": "https://edaplus.info",
+    "category": "calsites",
+    "type": "Composition and calorie reference site",
+    "whats_there": "Composition and calorie content section covering products and over 100 nutrients.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Not spot checked against a diary item in this pass.",
+    "access": "HTML pages",
+    "size": "over 400 base products described, more once dish variants are counted",
+    "cost": "free",
+    "cost_note": "",
+    "license": "Explicit copyright and citation rules page, reuse restricted.",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "FatSecret",
+    "url": "https://platform.fatsecret.com/platform-api",
+    "category": "apps",
+    "type": "Commercial nutrition API and consumer app",
+    "whats_there": "Foods, recipes, exercises, barcode and image recognition, user diary, same database behind the API and the fatsecret.com consumer site and apps. Searches for KFC Соло Бакет, Pizza Day 7 сирів, Багато Лосося and Poke Oke dishes returned only generic or US items.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full protein, fat, carb and kcal per food. Assembled from government nutrition tables, brand submitted data and staff verified community submissions. A live search on fatsecret.com found Яготинське dairy entries.",
+    "access": "REST API with OAuth, also a browsable HTML site and mobile apps",
+    "size": "about 2.3 million verified foods across 56 plus countries, vendor claim",
+    "cost": "freemium",
+    "cost_note": "Basic free tier 5000 calls per day US dataset only, Premier Free for startups and students free with attribution US dataset, paid Premier unlimited calls with 56 plus country datasets and white label",
+    "license": "Attribution required on free tiers, paid Premier contract needed for commercial redistribution or white labeling.",
+    "diary": [
+      "Яготинский Молоко 1%"
+    ],
+    "evidence": "live"
+  },
+  {
+    "name": "Nutritionix",
+    "url": "https://www.nutritionix.com/api",
+    "category": "apps",
+    "type": "Commercial nutrition API",
+    "whats_there": "Grocery and restaurant database with direct chain partnerships such as McDonald's, Chipotle, Starbucks and Subway, plus USDA data for generic home cooked foods.",
+    "kbzhu": "yes",
+    "kbzhu_note": "REST API at trackapi.nutritionix.com, requires an app id and key. Unauthenticated call confirmed live with an HTTP 401, proving the endpoint is real and key gated.",
+    "access": "REST API, key required",
+    "size": "about 991,000 grocery items and 202,000 restaurant items, vendor claim",
+    "cost": "freemium",
+    "cost_note": "free tier about 200 calls per day with attribution, paid tiers reported from about 50 dollars per month",
+    "license": "Free tier requires attribution.",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Edamam Food Database API",
+    "url": "https://developer.edamam.com/food-database-api",
+    "category": "apps",
+    "type": "Commercial nutrition API",
+    "whats_there": "USDA based generic foods plus branded and restaurant items.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full nutrition per food, not spot checked without a registered key.",
+    "access": "REST API, key required",
+    "size": "900,000 plus foods, vendor claim",
+    "cost": "freemium",
+    "cost_note": "free tier exists, paid plans up to 999 dollars per month",
+    "license": "Paid plans require Powered by Edamam attribution, caching restricted to 4 macros plus food id, label and image.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Spoonacular Food API",
+    "url": "https://spoonacular.com/food-api",
+    "category": "apps",
+    "type": "Commercial nutrition and recipe API",
+    "whats_there": "Ingredient and grocery nutrition primarily derived from USDA, gap filled manually, plus recipes and menu items.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full nutrition per ingredient or recipe, not independently spot checked.",
+    "access": "REST API, points based quota, also resold via RapidAPI",
+    "size": "large recipe and ingredient corpus, not independently published",
+    "cost": "freemium",
+    "cost_note": "free tier heavily rate limited, paid plans from 29 dollars per month",
+    "license": "Commercial use allowed on paid plans.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Passio Nutrition AI",
+    "url": "https://www.passio.ai",
+    "category": "apps",
+    "type": "Commercial nutrition AI SDK and API",
+    "whats_there": "Food recognition SDK, REST API and food database.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full nutrition per food, vendor claim, not independently spot checked.",
+    "access": "Mobile SDK plus REST API",
+    "size": "2.5 million plus foods, vendor claim",
+    "cost": "paid",
+    "cost_note": "token based usage pricing, contract based",
+    "license": "Commercial licensing, contract based.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Chomp",
+    "url": "https://chompthis.com/api/",
+    "category": "apps",
+    "type": "Commercial nutrition API",
+    "whats_there": "Grocery, branded and raw ingredient nutrition, labels, ingredients, barcodes.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Full nutrition per item, vendor claim, not independently spot checked, no free tier or public sample data.",
+    "access": "REST API, paid",
+    "size": "875,000 plus branded and grocery items, 1.2 million plus in a broader raw index",
+    "cost": "paid",
+    "cost_note": "billed by monthly active users, about 301.50 dollars per month at 2,500 MAU",
+    "license": "Commercial use permitted on all paid plans.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "Nutrola",
+    "url": "https://nutrola.app/en/api",
+    "category": "apps",
+    "type": "Commercial nutrition API and AI calorie app",
+    "whats_there": "Whole food nutrition sourced from USDA FoodData Central, text search, food by id, barcode scan, natural language analysis.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Built on USDA FDC for base foods, low likelihood of Ukrainian retail brands, not independently spot checked.",
+    "access": "REST API",
+    "size": "not independently published",
+    "cost": "freemium",
+    "cost_note": "free tier 500 requests per day, no card required, requires attribution, paid tiers add AI photo recognition from 29 dollars per month",
+    "license": "Free tier requires visible attribution.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "SnapCalorie",
+    "url": "https://snapcalorie.github.io",
+    "category": "apps",
+    "type": "AI photo based nutrition API",
+    "whats_there": "Proprietary vision analysis API that returns identified foods and nutrition from an image or description.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Model generated nutrition values, not backed by a static catalogue, pricing not published.",
+    "access": "REST API, documented endpoints",
+    "size": "not published, proprietary model rather than a static catalogue",
+    "cost": "paid",
+    "cost_note": "pricing not published on public docs",
+    "license": "Proprietary, no public terms found.",
+    "diary": [],
+    "evidence": "claim"
+  },
+  {
+    "name": "АТБ",
+    "url": "https://www.atbmarket.com",
+    "category": "grocery",
+    "type": "Discounter online catalogue",
+    "whats_there": "Grocery catalogue including the Своя Лінія, De Luxe Foods and Розумний вибір own brands. Google snippets for atbmarket.com product pages show numeric КБЖУ.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Seen in search snippets only",
+    "access": "Blocked, Cloudflare returns 403 to scripts",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "search"
+  },
+  {
+    "name": "Наш Край",
+    "url": "https://shop.nashkraj.ua",
+    "category": "grocery",
+    "type": "Supermarket online shop",
+    "whats_there": "Online shop of a chain with 200+ stores and its own Наш Край brand. The food product checked shows КБЖУ.",
+    "kbzhu": "yes",
+    "kbzhu_note": "",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Копійочка",
+    "url": "https://www.kopiyochka.ua/catalog/",
+    "category": "grocery",
+    "type": "Discounter online catalogue",
+    "whats_there": "Catalogue of a discounter with 450+ stores in 16 oblasts. The food product checked shows КБЖУ.",
+    "kbzhu": "yes",
+    "kbzhu_note": "",
+    "access": "HTML",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Пузата Хата",
+    "url": "https://puzatahata.ua",
+    "category": "foodservice",
+    "type": "Canteen chain, ChoiceQR ordering menu",
+    "whats_there": "Ukraine's largest canteen chain. Each menu item on its ChoiceQR page carries a numeric kcal field, and the item description spells out білки, жири and вуглеводи.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Macros are free text inside the description",
+    "access": "ChoiceQR page with embedded JSON",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Євразія",
+    "url": "https://evrasia.in.ua/restaurant/kcal",
+    "category": "foodservice",
+    "type": "Restaurant chain nutrition PDF",
+    "whats_there": "Реєстр КБЖУ та алергенів, a 10-page PDF dated July 2026 linked from the menu page. Full КБЖУ and allergens per dish, for example a 310 g Ukrainian breakfast at 686 kcal.",
+    "kbzhu": "yes",
+    "kbzhu_note": "Per dish, with serving weight",
+    "access": "PDF, no auth",
+    "size": "10 pages, whole menu",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "Dinner's",
+    "url": "https://www.dinners.com.ua/menu",
+    "category": "foodservice",
+    "type": "Restaurant chain site",
+    "whats_there": "The dish modal on the menu page has fields for kcal and protein per 100 g, filled by JavaScript from an internal API that was not located.",
+    "kbzhu": "unverified",
+    "kbzhu_note": "Fields exist, values not retrieved",
+    "access": "HTML with a JS-filled modal",
+    "size": "unknown",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "live"
+  },
+  {
+    "name": "ChoiceQR",
+    "url": "https://choiceqr.com",
+    "category": "marketplaces",
+    "type": "Restaurant ordering platform",
+    "whats_there": "Per-venue menus on name.choiceqr.com pages embed JSON with a kcal field for every item. UPG, Milk Bar, Хлібний and Пузата Хата fill it; Celentano, Хінкальня and Kyiv Food Market leave it at 0 or empty.",
+    "kbzhu": "partial",
+    "kbzhu_note": "kcal field always present, filled by some venues",
+    "access": "HTML with embedded JSON, no key",
+    "size": "about 16,000 venues across Ukraine, Czechia, Poland and Estonia",
+    "cost": "free",
+    "cost_note": "",
+    "license": "No license found",
+    "diary": [],
+    "evidence": "live"
+  }
+]
+</script>
+<script type="application/json" id="data-dead">
+[
+  {
+    "name": "Фора",
+    "url": "https://fora.ua",
+    "category": "grocery",
+    "reason": "React app. Its JSON-RPC backend EcomCatalogGlobal defines a nutritionalValue field, but no populated values were found and search snippets show no КБЖУ."
+  },
+  {
+    "name": "Velmart",
+    "url": "https://velmart.ua",
+    "category": "grocery",
+    "reason": "No real product page reached. Own robots.txt points its sitemap at a staging hostname. Nutrition values only found on a third party calorie site, not on velmart.ua itself."
+  },
+  {
+    "name": "Рукавичка",
+    "url": "https://market.rukavychka.ua",
+    "category": "grocery",
+    "reason": "Online shop at market.rukavychka.ua; the food product checked had no nutrition section."
+  },
+  {
+    "name": "SPAR Україна",
+    "url": "https://shop.spar.ua",
+    "category": "grocery",
+    "reason": "Search attempt used a wrong route and returned HTTP 404. No nutrition confirmed, not retried with a correct route."
+  },
+  {
+    "name": "Близенько",
+    "url": "https://blyzenko.ua",
+    "category": "grocery",
+    "reason": "No online product catalogue."
+  },
+  {
+    "name": "Thrash",
+    "url": "https://thrash.ua",
+    "category": "grocery",
+    "reason": "Site is a store locator and promotions page only, no evidence of a shoppable online catalogue."
+  },
+  {
+    "name": "Сім23 Сімі",
+    "url": "https://simi.ua",
+    "category": "grocery",
+    "reason": "Both domains are marketing or informational sites, no product catalogue found."
+  },
+  {
+    "name": "Фуршет",
+    "url": "https://furshet.ua",
+    "category": "grocery",
+    "reason": "Chain went bankrupt in 2021 and was absorbed by Сільпо-Фуд. Domain still resolves but no functioning online catalogue was confirmed."
+  },
+  {
+    "name": "Good Wine",
+    "url": "https://goodwine.com.ua",
+    "category": "grocery",
+    "reason": "Premium grocery and wine retailer with a large sitemap, but no product page was opened to check nutrition and the catalogue skews to alcohol, which typically omits kcal."
+  },
+  {
+    "name": "Winetime",
+    "url": "https://winetime.com.ua",
+    "category": "grocery",
+    "reason": "Alcohol only retailer, large sitemap, no product page checked and wine and spirits retailers typically do not show kcal."
+  },
+  {
+    "name": "Rozetka",
+    "url": "https://rozetka.com.ua",
+    "category": "marketplaces",
+    "reason": "Product pages return HTTP 403 from Cloudflare. No nutrition confirmed."
+  },
+  {
+    "name": "Kasta.ua",
+    "url": "https://kasta.ua",
+    "category": "marketplaces",
+    "reason": "Cloudflare interactive challenge blocks all automated access, and the site is fashion led with doubtful food coverage."
+  },
+  {
+    "name": "Prom.ua",
+    "url": "https://prom.ua",
+    "category": "marketplaces",
+    "reason": "General marketplace with seller authored descriptions and no unified nutrition schema. No structured nutrition found."
+  },
+  {
+    "name": "Allo.ua",
+    "url": "https://allo.ua",
+    "category": "marketplaces",
+    "reason": "Guessed grocery category URL returned HTTP 404, no nutrition confirmed."
+  },
+  {
+    "name": "Price.ua",
+    "url": "https://price.ua",
+    "category": "marketplaces",
+    "reason": "Search results page for a well known snack showed zero nutrition text anywhere on the page."
+  },
+  {
+    "name": "Порівняй ціни, porivnyalnik.com",
+    "url": "https://porivnyalnik.com",
+    "category": "marketplaces",
+    "reason": "Client rendered SPA, static shell carries no nutrition data and is explicitly a price comparison tool."
+  },
+  {
+    "name": "Мінфін, Ціни на продукти",
+    "url": "https://index.minfin.com.ua/ua/markets/wares/",
+    "category": "marketplaces",
+    "reason": "Daily average price index by category and chain, no per product or nutrition data."
+  },
+  {
+    "name": "Hotline.ua",
+    "url": "https://hotline.ua",
+    "category": "marketplaces",
+    "reason": "The food category path returned a dead stub, Legacy home controller has been disabled, no working food category found."
+  },
+  {
+    "name": "UPCitemdb",
+    "url": "https://www.upcitemdb.com",
+    "category": "marketplaces",
+    "reason": "Trial endpoint returned zero results for all four Ukrainian barcodes tested, including well known international brands."
+  },
+  {
+    "name": "GS1 GEPIR, Verified by GS1",
+    "url": "https://gepir.gs1ua.org",
+    "category": "marketplaces",
+    "reason": "Resolves a barcode to the owning company only, never to nutrition. Confirmed identity data only, no nutrition fields anywhere."
+  },
+  {
+    "name": "Glovo Україна",
+    "url": "https://glovoapp.com/uk/ua",
+    "category": "marketplaces",
+    "reason": "JavaScript app with no server-rendered menu and no anonymous menu API found. No venue seen showing kcal."
+  },
+  {
+    "name": "Bolt Food, Bolt Market",
+    "url": "https://food.bolt.eu/uk-ua",
+    "category": "marketplaces",
+    "reason": "A live KFC store page returns an empty app shell. Third-party scrapers extract name, description and price only."
+  },
+  {
+    "name": "Uklon Delivery",
+    "url": "https://uklon.com.ua",
+    "category": "marketplaces",
+    "reason": "A courier and logistics product that moves items from partner stores, not itself a product catalogue, no nutrition surface."
+  },
+  {
+    "name": "Domino's Pizza Україна",
+    "url": "https://dominos.ua",
+    "category": "foodservice",
+    "reason": "Full product JSON extracted from the site has price, weight and description fields only, confirmed no calorie or macro fields exist."
+  },
+  {
+    "name": "Pizza Day",
+    "url": "https://pizzaday.ua",
+    "category": "foodservice",
+    "reason": "Homepage has zero calorie or nutrition keywords, ordering happens in app and was not reachable."
+  },
+  {
+    "name": "Багато Лосося",
+    "url": "https://bagatolososia.kiev.ua",
+    "category": "foodservice",
+    "reason": "Real product page opened, zero calorie or composition keywords found."
+  },
+  {
+    "name": "Оболонь",
+    "url": "https://obolon.ua",
+    "category": "producers",
+    "reason": "Beer production listing and an individual product page both loaded fully but show zero nutrition text, unlike Carlsberg Ukraine and Опілля which do publish it."
+  },
+  {
+    "name": "Mafia",
+    "url": "https://mafia.ua",
+    "category": "foodservice",
+    "reason": "Full real homepage loaded, zero calorie or protein keywords found."
+  },
+  {
+    "name": "Celentano",
+    "url": "https://pizzacelentano.com",
+    "category": "foodservice",
+    "reason": "All 63 items on celentano.choiceqr.com have kcal set to 0 or empty. The site at pizzacelentano.com shows no values."
+  },
+  {
+    "name": "Yaposhka",
+    "url": "https://yaposhka.kh.ua",
+    "category": "foodservice",
+    "reason": "The site's own menu link resolves to a different brand name, Yapiko, needs a human check before use."
+  },
+  {
+    "name": "Суші Wok",
+    "url": "https://sushiwok.ua",
+    "category": "foodservice",
+    "reason": "sushiwok.ua was down; the chain now trades as Arigato at arigato.kyiv.ua, whose homepage shows no nutrition."
+  },
+  {
+    "name": "Budusushi",
+    "url": "https://budusushi.ua",
+    "category": "foodservice",
+    "reason": "Only generic low calorie marketing prose found, no numeric nutrition values on the pages checked."
+  },
+  {
+    "name": "Poke Oke",
+    "url": "https://www.instagram.com/poke.oke.kyiv",
+    "category": "foodservice",
+    "reason": "No dedicated official website found, presence is social media only."
+  },
+  {
+    "name": "Aroma Kava",
+    "url": "https://aromakava.ua",
+    "category": "foodservice",
+    "reason": "Full real homepage loaded, zero calorie or protein keywords found."
+  },
+  {
+    "name": "One Price Coffee, Coffee Life",
+    "url": "https://onepricecoffee.com.ua",
+    "category": "foodservice",
+    "reason": "Neither domain resolved, no obviously correct official site found for either name."
+  },
+  {
+    "name": "Хінкальня",
+    "url": "https://khinkalnya.com/ua/",
+    "category": "foodservice",
+    "reason": "ChoiceQR menu has the kcal field but it is always 0, with no macros."
+  },
+  {
+    "name": "Мамасіта",
+    "url": "https://tomato.ua",
+    "category": "foodservice",
+    "reason": "No dedicated official site found beyond listing and review sites."
+  },
+  {
+    "name": "Шаурмен, Odesa",
+    "url": "https://shaurman.com.ua",
+    "category": "foodservice",
+    "reason": "Menu page has zero calorie or protein keywords found."
+  },
+  {
+    "name": "Doner Marmaris, Чорноморка",
+    "url": "",
+    "category": "foodservice",
+    "reason": "No official website could be confirmed for either name, likely small regional chains."
+  },
+  {
+    "name": "Burger Club, Dogs and Tails, Farsh",
+    "url": "",
+    "category": "foodservice",
+    "reason": "Search results were dominated by an unrelated same named Russian chain, or the businesses only have Instagram or Facebook pages, no confirmed official Ukrainian site with a menu found."
+  },
+  {
+    "name": "Premium Butcher",
+    "url": "https://premiumbutcher.com.ua",
+    "category": "foodservice",
+    "reason": "Zero calorie or composition keywords found, this is a raw meat retailer rather than a menu driven restaurant."
+  },
+  {
+    "name": "Франс.уа",
+    "url": "https://frans.ua",
+    "category": "foodservice",
+    "reason": "No menu link found in the main navigation and no product sitemap, no reachable menu content."
+  },
+  {
+    "name": "Пекарня Хлібний",
+    "url": "",
+    "category": "outofhome",
+    "reason": "Could not locate an official website in this pass."
+  },
+  {
+    "name": "Козачок",
+    "url": "https://kozachok.ua",
+    "category": "foodservice",
+    "reason": "Site resolves but was found only via search, no menu or nutrition content checked in depth."
+  },
+  {
+    "name": "Лісова пісня",
+    "url": "",
+    "category": "foodservice",
+    "reason": "The name matches several unrelated venues, no single confirmed chain site identified."
+  },
+  {
+    "name": "OKKO Cafe",
+    "url": "https://www.okko.ua/cafe",
+    "category": "outofhome",
+    "reason": "No nutrition, allergen or calorie page anywhere on okko.ua; checked /cafe, a 2,801-URL sitemap and likely paths."
+  },
+  {
+    "name": "WOG Cafe",
+    "url": "https://wog.ua",
+    "category": "outofhome",
+    "reason": "No dedicated menu or nutrition page found on the official site, only news posts about seasonal menu changes."
+  },
+  {
+    "name": "SOCAR Buta Cafe",
+    "url": "https://socar.ua/cafe/01014",
+    "category": "outofhome",
+    "reason": "Client rendered SPA, curl gets an empty app shell, no nutrition data retrievable without a headless browser."
+  },
+  {
+    "name": "BRSM-Nafta",
+    "url": "https://brsm-nafta.com/",
+    "category": "outofhome",
+    "reason": "Confirmed real gas station cafe with food, but no nutrition information found on the official site."
+  },
+  {
+    "name": "Shell, Авіас",
+    "url": "https://avias.ua/",
+    "category": "outofhome",
+    "reason": "Confirmed real gas station cafe brand, but no nutrition information found on the official site."
+  },
+  {
+    "name": "Motto",
+    "url": "https://motto.ua/",
+    "category": "outofhome",
+    "reason": "Loyalty program and station info only, no nutrition information found."
+  },
+  {
+    "name": "Кулиничі",
+    "url": "https://kulinichi.com",
+    "category": "outofhome",
+    "reason": "No kcal or nutrition text on either the corporate site or the shop homepage, despite a self reported SKU count."
+  },
+  {
+    "name": "FitBox",
+    "url": "https://fitbox.kiev.ua",
+    "category": "outofhome",
+    "reason": "Domain did not resolve or connect during this check, cannot verify it is still operating."
+  },
+  {
+    "name": "Галя Балувана",
+    "url": "https://galia-baluvana.com",
+    "category": "outofhome",
+    "reason": "Frozen ready meal franchise with about 950 stores, category pages show product names only, no protein, fat, carb or kcal text."
+  },
+  {
+    "name": "Рудь",
+    "url": "https://rud.ua/",
+    "category": "outofhome",
+    "reason": "Site currently shows under reconstruction, no content reachable, live but temporarily empty."
+  },
+  {
+    "name": "Хрещатик, Лімо",
+    "url": "https://limo.ua/",
+    "category": "outofhome",
+    "reason": "Cloudflare managed challenge blocks curl on every path except robots.txt, no nutrition confirmed directly on the site. Values for these brands exist on tablycjakalorijnosti.com.ua instead."
+  },
+  {
+    "name": "Геркулес",
+    "url": "http://hercules.ua/",
+    "category": "outofhome",
+    "reason": "Domain did not respond during this check, company confirmed real via secondary sources but the site itself is unreachable."
+  },
+  {
+    "name": "Ласунка",
+    "url": "",
+    "category": "outofhome",
+    "reason": "No official manufacturer website found, brand itself is real and documented only via retailers and third party calorie sites."
+  },
+  {
+    "name": "Молокія",
+    "url": "https://www.molokija.com",
+    "category": "producers",
+    "reason": "A 4.4 MB catalogue PDF exists but shows fat percentage and ingredient lists only, no numeric kcal, protein, fat or carb figures anywhere."
+  },
+  {
+    "name": "Звенигора",
+    "url": "https://zvenigora.com/products/cream_cheese/",
+    "category": "producers",
+    "reason": "Page has a nutrition heading but the numeric table did not appear in the fetched HTML, likely loaded by JS, not confirmed either way."
+  },
+  {
+    "name": "Organic Milk",
+    "url": "https://organic-milk.com.ua",
+    "category": "producers",
+    "reason": "Thin marketing site, only 3 URLs in sitemap, not checked this session."
+  },
+  {
+    "name": "Гармонія",
+    "url": "https://garmonija.ua",
+    "category": "producers",
+    "reason": "Full homepage loads, zero nutrition keywords found."
+  },
+  {
+    "name": "Руна",
+    "url": "https://runa.ua",
+    "category": "producers",
+    "reason": "Large category page loads, zero nutrition keyword hits."
+  },
+  {
+    "name": "Nestle Україна",
+    "url": "https://www.nestle.ua",
+    "category": "producers",
+    "reason": "Main domain and the dedicated nutrition page both return HTTP 403 to curl, blocked by a WAF or Cloudflare."
+  },
+  {
+    "name": "Наша Ряба, МХП",
+    "url": "https://ryaba.ua/product/gomilka/",
+    "category": "producers",
+    "reason": "Product page is a JS heavy SPA, no nutrition text present in the fetched HTML."
+  },
+  {
+    "name": "Епікур",
+    "url": "https://epikur.com.ua",
+    "category": "producers",
+    "reason": "Sitemap has only 4 URLs and the one product URL tried returned HTTP 404."
+  },
+  {
+    "name": "Глобино",
+    "url": "https://globino.ua",
+    "category": "producers",
+    "reason": "Resolves to a WordPress corporate news blog, not a product catalogue, no nutrition content found."
+  },
+  {
+    "name": "Ходорівський м'ясокомбінат",
+    "url": "https://khodorivmk.com/konservy-miasni/miaso-tushkovane-svynyna/",
+    "category": "producers",
+    "reason": "The exact diary product page loads and confirms the title but shows composition only, no kcal, protein, fat or carb numbers."
+  },
+  {
+    "name": "Favore",
+    "url": "https://favore.com.ua",
+    "category": "producers",
+    "reason": "Domain is a broken redirect loop with no content. The similarly named producer Фаворит Плюс makes different products, the actual maker of the diary's turkey roll was not identified."
+  },
+  {
+    "name": "Уманьмясо, Юнігран",
+    "url": "",
+    "category": "producers",
+    "reason": "No official website could be located via search."
+  },
+  {
+    "name": "Baker House",
+    "url": "",
+    "category": "producers",
+    "reason": "No independent producer website found, likely a retailer private label rather than a company with its own site."
+  },
+  {
+    "name": "Житомирські ласощі",
+    "url": "https://lasoshhi.com.ua",
+    "category": "producers",
+    "reason": "Domain returns HTTP 404 on both root adjacent sitemap and direct checks."
+  },
+  {
+    "name": "Mondelez Україна",
+    "url": "",
+    "category": "producers",
+    "reason": "Not investigated in this pass, no producer nutrition page located."
+  },
+  {
+    "name": "PepsiCo Ukraine catalogue",
+    "url": "https://products.pepsico.ua",
+    "category": "producers",
+    "reason": "Category pages are a client rendered SPA, curl could not extract individual product detail markup or nutrition fields."
+  },
+  {
+    "name": "Lay's Ukraine brand site",
+    "url": "https://lays.ua",
+    "category": "producers",
+    "reason": "Thin marketing landing page, zero nutrition content, no per product pages."
+  },
+  {
+    "name": "Sandora brand site",
+    "url": "https://sandora.ua",
+    "category": "producers",
+    "reason": "Thin marketing landing page, zero nutrition content, no per product pages."
+  },
+  {
+    "name": "Roshen",
+    "url": "https://roshen.com",
+    "category": "producers",
+    "reason": "Catalogue paths return HTTP 404 and the root fetch behaves unreliably. The retail store site roshenstores.com is a JS SPA with no extractable product links, not independently verified on a Roshen owned domain."
+  },
+  {
+    "name": "АВК",
+    "url": "https://avksweets.com",
+    "category": "producers",
+    "reason": "Three pages fetched, all JS rendered shells with no server side nutrition text."
+  },
+  {
+    "name": "Optimum Nutrition",
+    "url": "https://www.optimumnutrition.com",
+    "category": "producers",
+    "reason": "No Ukraine specific producer site, global site returned bot protected fallback content on direct product URLs."
+  },
+  {
+    "name": "Моршинська",
+    "url": "https://morshynska.ua",
+    "category": "producers",
+    "reason": "No nutrition keywords found on the homepage, expected for plain water, energy drink sub line not individually checked."
+  },
+  {
+    "name": "Море Пива",
+    "url": "https://morepiva.ua",
+    "category": "producers",
+    "reason": "A dried meat snack product page loaded with no nutrition keywords found, this looks like a retailer rather than the actual producer."
+  },
+  {
+    "name": "Флагман",
+    "url": "https://e-flagman.fish",
+    "category": "producers",
+    "reason": "Sitemap.xml returns HTTP 200 but with an empty URL list, no product pages found."
+  },
+  {
+    "name": "Tablicakalorijnosti.ru, health-diet.ru, dietadiary.com",
+    "url": "https://health-diet.ru",
+    "category": "calsites",
+    "reason": "Russian hosted calorie sites, resolvable by DNS but every connection attempt timed out from our network, could not spot check any content."
+  },
+  {
+    "name": "Calorizator.ru",
+    "url": "https://calorizator.ru",
+    "category": "calsites",
+    "reason": "Long running Russian calorie table site, but every connection attempt timed out from our network, not opened in this pass."
+  },
+  {
+    "name": "Клопотенко",
+    "url": "https://klopotenko.com",
+    "category": "calsites",
+    "reason": "Recipe listings and category pages show no kcal or macro figures anywhere."
+  },
+  {
+    "name": "Смачно",
+    "url": "https://smachno.in.ua",
+    "category": "calsites",
+    "reason": "Navigation promises a nutritional value section but individual recipe pages were not confirmed to show any kcal or macro figures."
+  },
+  {
+    "name": "ЄДА",
+    "url": "",
+    "category": "calsites",
+    "reason": "A media and TV brand, not a data source, no independent product or nutrition database found."
+  },
+  {
+    "name": "Ukrainian official МОЗ tables",
+    "url": "https://zakon.rada.gov.ua/go/z0146-00",
+    "category": "opendb",
+    "reason": "No live, browsable per product database exists. Only a 2000 era methodology document, which lost legal force in 2014, and outdated 1999 physiological needs norms were found, neither is a browsable food item table."
+  },
+  {
+    "name": "Skurikhin food composition reference",
+    "url": "",
+    "category": "opendb",
+    "reason": "No official digital release exists, only scans of uncertain legality on file sharing sites, and the original carries a no reproduction notice. Given the war, treated as a Russia origin source unsuitable as a data pipeline input."
+  },
+  {
+    "name": "EFSA food composition database",
+    "url": "https://www.efsa.europa.eu/en/data-report/food-composition",
+    "category": "opendb",
+    "reason": "Current version covers only 7 EU countries with limited public access. A genuinely open pan-European database is planned but was not available at research time."
+  },
+  {
+    "name": "Kaggle Ukraine Food Prices dataset",
+    "url": "https://www.kaggle.com/datasets/ihormuliar/ukraine-food-prices",
+    "category": "opendb",
+    "reason": "Despite the name, contains prices only, no nutrition values."
+  },
+  {
+    "name": "MyFitnessPal API",
+    "url": "https://www.myfitnesspal.com",
+    "category": "apps",
+    "reason": "Public developer API program is closed to new applicants, no legal path for a bot to pull its database."
+  },
+  {
+    "name": "Cronometer",
+    "url": "https://cronometer.com",
+    "category": "apps",
+    "reason": "Its core NCCDB dataset is a paid, proprietary academic license not redistributed via any public API."
+  },
+  {
+    "name": "Lose It!",
+    "url": "https://www.loseit.com",
+    "category": "apps",
+    "reason": "No public developer API found."
+  },
+  {
+    "name": "YAZIO",
+    "url": "https://www.yazio.com",
+    "category": "apps",
+    "reason": "No public developer API or terms found."
+  },
+  {
+    "name": "Lifesum",
+    "url": "https://lifesum.com",
+    "category": "apps",
+    "reason": "No public API found."
+  },
+  {
+    "name": "MacroFactor",
+    "url": "https://macrofactor.com",
+    "category": "apps",
+    "reason": "App only, no public API, uses Open Food Facts which is already a separate source."
+  },
+  {
+    "name": "Carbon, Layne Norton",
+    "url": "https://www.joincarbon.com",
+    "category": "apps",
+    "reason": "Uses FatSecret's database under the hood, governed by FatSecret's terms, not an independent source."
+  },
+  {
+    "name": "Samsung Health, Samsung Food",
+    "url": "https://developer.samsung.com/health",
+    "category": "apps",
+    "reason": "Samsung Health SDK is a data store, not a browsable database, and Samsung Food has no public API."
+  },
+  {
+    "name": "Google Fit, Health Connect",
+    "url": "https://developers.google.com/health/data-types/nutrition",
+    "category": "apps",
+    "reason": "A nutrition data type only, no food catalogue of its own, a diary sync target rather than a nutrition source."
+  },
+  {
+    "name": "Apple Health, HealthKit",
+    "url": "https://developer.apple.com/health-fitness/",
+    "category": "apps",
+    "reason": "Nutrition sample types only, no food catalogue, a diary sync target rather than a nutrition source."
+  },
+  {
+    "name": "Noom",
+    "url": "https://www.noom.com",
+    "category": "apps",
+    "reason": "App only, no public API."
+  },
+  {
+    "name": "Fitatu",
+    "url": "https://www.fitatu.com",
+    "category": "apps",
+    "reason": "No public API, and no evidence of a Ukrainian language database, coverage is Polish and Western European markets."
+  },
+  {
+    "name": "Худеем вместе, Худеем за неделю",
+    "url": "https://hv.life/",
+    "category": "apps",
+    "reason": "Russian market app family, no data source documentation, no public API, and legally uncertain for a bot serving a Ukraine based user."
+  },
+  {
+    "name": "Cal AI",
+    "url": "https://www.calai.app",
+    "category": "apps",
+    "reason": "App only, no public API or web interface for its manual search database, and its photo path is a model estimate with no underlying database row."
+  },
+  {
+    "name": "Calorie Mama, Azumio",
+    "url": "https://www.caloriemama.ai",
+    "category": "apps",
+    "reason": "Food recognition API is pitched to partners only, no public terms or self serve access found."
+  },
+  {
+    "name": "Syndigo, 1WorldSync",
+    "url": "https://syndigo.com/gdsn/",
+    "category": "apps",
+    "reason": "Enterprise B2B product content platform, no self serve or public tier, requires a retailer or brand relationship."
+  },
+  {
+    "name": "NielsenIQ Brandbank, Label Insight",
+    "url": "https://nielseniq.com/global/en/solutions/brandbank-enriched-product-data/",
+    "category": "apps",
+    "reason": "Enterprise data licensing only, no free or self serve tier."
+  },
+  {
+    "name": "Salsify",
+    "url": "https://www.salsify.com",
+    "category": "apps",
+    "reason": "PIM software for a brand's own catalogue, not a shared database, no public dataset to access."
+  },
+  {
+    "name": "GS1 GDSN",
+    "url": "https://www.gs1.org/services/gdsn",
+    "category": "apps",
+    "reason": "Nutrition data travels over a closed B2B network requiring a paid data pool subscription and a trading partner relationship, not accessible to an independent bot."
+  },
+  {
+    "name": "ЩоЇм",
+    "url": "https://shoim.com.ua",
+    "category": "apps",
+    "reason": "Barcode scanner app marketed to show composition and nutritional value, but the web root returns HTTP 404 and there is no public catalogue or API to verify against."
+  },
+  {
+    "name": "data.gov.ua",
+    "url": "https://data.gov.ua",
+    "category": "opendb",
+    "reason": "No food composition dataset. A search for харчова цінність returns no datasets; only farm production statistics exist."
+  },
+  {
+    "name": "Smaki Maki",
+    "url": "https://smaki-maki.com",
+    "category": "foodservice",
+    "reason": "Product pages show composition only, no kcal."
+  },
+  {
+    "name": "Musafir",
+    "url": "https://www.musafir.com.ua",
+    "category": "foodservice",
+    "reason": "Product pages show composition and weight only."
+  },
+  {
+    "name": "Monosushi",
+    "url": "https://monosushi.com.ua",
+    "category": "foodservice",
+    "reason": "Product pages show composition and weight only."
+  },
+  {
+    "name": "Yapiko",
+    "url": "https://yapiko.ua",
+    "category": "foodservice",
+    "reason": "Roll category pages have no kcal or calorie strings."
+  },
+  {
+    "name": "Kyiv Food Market",
+    "url": "https://kyivfood-market.choiceqr.com",
+    "category": "foodservice",
+    "reason": "ChoiceQR kcal field empty for every item checked."
+  },
+  {
+    "name": "Pesto Family",
+    "url": "https://pesto-family.com",
+    "category": "foodservice",
+    "reason": "Pesto Cafe, Pasta and Pizza, Mister Twister pages show no nutrition and no composition."
+  },
+  {
+    "name": "Tarantino Family",
+    "url": "https://www.tarantino-family.com",
+    "category": "foodservice",
+    "reason": "Includes Хачапурі та Вино. Delivery pages show no nutrition."
+  },
+  {
+    "name": "Two Chellas Pizza",
+    "url": "https://twochellaspizza.choiceqr.com",
+    "category": "foodservice",
+    "reason": "1 of 317 ChoiceQR items has a kcal value."
+  },
+  {
+    "name": "Pizza33",
+    "url": "https://pizza33.com.ua",
+    "category": "foodservice",
+    "reason": "Product pages show no nutrition or composition."
+  },
+  {
+    "name": "Pokeman",
+    "url": "https://pokeman.com.ua",
+    "category": "foodservice",
+    "reason": "Poke bowl product pages show no nutrition."
+  },
+  {
+    "name": "Pizza House",
+    "url": "https://pizzahouse.ua",
+    "category": "foodservice",
+    "reason": "Product pages show composition only."
+  },
+  {
+    "name": "Суші Сторі",
+    "url": "https://ua.sushistory.com",
+    "category": "foodservice",
+    "reason": "Same Next.js template as Мама Манана; city menu routes not reached and no values found."
+  },
+  {
+    "name": "Козирна Карта",
+    "url": "",
+    "category": "foodservice",
+    "reason": "Chain closed in 2019."
+  },
+  {
+    "name": "Poster POS QR menus",
+    "url": "https://joinposter.com",
+    "category": "marketplaces",
+    "reason": "No live Ukrainian venue menu located to check; marketing mentions no nutrition fields."
+  },
+  {
+    "name": "Syrve, formerly iiko",
+    "url": "https://ua.restasystem.com",
+    "category": "marketplaces",
+    "reason": "Dish cards can store nutrition per vendor docs, but no Ukrainian venue publishing it was found."
+  },
+  {
+    "name": "Expirenza by monobank",
+    "url": "https://expz.menu",
+    "category": "marketplaces",
+    "reason": "QR menus are a JavaScript app; no nutrition strings or JSON API reachable."
+  }
+]
+</script>
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const SOURCES = JSON.parse($("#data-sources").textContent);
+  const DEAD = JSON.parse($("#data-dead").textContent);
+
+  // Category order and copy for the catalogue and dead-end sections.
+  const CATS = [
+    { key: "grocery", title: "Supermarkets and grocery APIs", blurb: "Retail catalogues. Сільпо and Zakaz.ua expose public JSON with per-100 g values; the rest need HTML parsing or sit behind Cloudflare." },
+    { key: "foodservice", title: "Restaurants and cafés", blurb: "Chains that publish menu nutrition, whether as a PDF, visible text or JSON embedded in the page." },
+    { key: "outofhome", title: "Gas stations, bakeries and meal delivery", blurb: "Station cafés, bakery chains, meal-prep services, frozen ready meals and ice cream." },
+    { key: "producers", title: "Producers and brands", blurb: "Manufacturer sites. The label values here are the ground truth when retailers disagree." },
+    { key: "marketplaces", title: "Marketplaces, delivery apps and barcode lookups", blurb: "Multi-seller catalogues, price aggregators, barcode services and open-source API clients." },
+    { key: "opendb", title: "Open and government databases", blurb: "Downloadable composition tables and open product databases with clear licenses. The fallback for generic foods and home cooking." },
+    { key: "calsites", title: "Calorie websites", blurb: "Calorie tables built by third parties. Wide coverage, unclear sourcing, usually restrictive terms." },
+    { key: "apps", title: "Calorie apps and nutrition APIs", blurb: "Where FatSecret and its competitors get their data, and which of them sell API access." },
+  ];
+  const KB = { yes: ["yes", "Full КБЖУ"], partial: ["part", "Partial"], no: ["no", "None"], unverified: ["unk", "Unverified"] };
+  const COST = { free: ["yes", "Free"], freemium: ["part", "Free tier"], paid: ["no", "Paid"] };
+  const EV = { live: "Checked live", search: "Search snippets", claim: "Vendor claim" };
+  const chip = (p) => (p ? `<span class="chip chip-${p[0]}">${p[1]}</span>` : "");
+  const link = (name, url) => (url ? `<a href="${esc(url)}" target="_blank" rel="noopener">${esc(name)}</a>` : `<strong>${esc(name)}</strong>`);
+
+  const row = (s) => `<tr>
+    <td class="c-src">${link(s.name, s.url)}<div class="type">${esc(s.type)}</div><div class="ev">${esc(EV[s.evidence] || "")}</div></td>
+    <td class="c-what">${esc(s.whats_there)}${(s.diary || []).length ? `<div class="tags">${s.diary.map((d) => `<span class="tag">${esc(d)}</span>`).join("")}</div>` : ""}</td>
+    <td class="c-kb">${chip(KB[s.kbzhu])}${s.kbzhu_note ? `<div class="note">${esc(s.kbzhu_note)}</div>` : ""}</td>
+    <td class="c-acc">${esc(s.access)}</td>
+    <td class="c-size">${esc(s.size)}</td>
+    <td class="c-cost">${chip(COST[s.cost])}${s.cost_note ? `<div class="note">${esc(s.cost_note)}</div>` : ""}</td>
+    <td class="c-lic">${esc(s.license)}</td>
+  </tr>`;
+
+  const thead = `<thead><tr><th class="c-src">Source</th><th class="c-what">What's there</th><th class="c-kb">КБЖУ</th><th class="c-acc">Access</th><th class="c-size">Size</th><th class="c-cost">Cost</th><th class="c-lic">License or terms</th></tr></thead>`;
+
+  function render() {
+    const q = $("#q").value.trim().toLowerCase();
+    const onlyK = $("#only-kbzhu").checked;
+    const onlyF = $("#only-free").checked;
+    const match = (s) =>
+      (!q || JSON.stringify(s).toLowerCase().includes(q)) &&
+      (!onlyK || s.kbzhu === "yes") &&
+      (!onlyF || s.cost === "free" || s.cost === "freemium");
+    let shown = 0;
+    const jump = [];
+    const html = CATS.map((c) => {
+      const rows = SOURCES.filter((s) => s.category === c.key && match(s));
+      if (!rows.length) return "";
+      shown += rows.length;
+      jump.push(`<a href="#cat-${c.key}">${esc(c.title)}</a><span>${rows.length}</span>`);
+      return `<section class="cat" id="cat-${c.key}">
+        <div class="cat-head"><h3>${esc(c.title)}</h3><span class="count">${rows.length}</span></div>
+        <p class="cat-blurb">${esc(c.blurb)}</p>
+        <div class="scroller"><table>${thead}<tbody>${rows.map(row).join("")}</tbody></table></div>
+      </section>`;
+    }).join("");
+    $("#catalogue").innerHTML = html || `<p class="empty">No sources match. Clear the filter to see all of them.</p>`;
+    $("#jump").innerHTML = jump.map((j) => `<span style="display:inline-flex;gap:6px;align-items:baseline">${j}</span>`).join("");
+    $("#shown").textContent = `${shown} of ${SOURCES.length} sources`;
+  }
+
+  function renderDead() {
+    $("#dead").innerHTML = CATS.map((c) => {
+      const items = DEAD.filter((d) => d.category === c.key);
+      if (!items.length) return "";
+      return `<div class="dead-group"><h3>${esc(c.title)}</h3><ul>${items
+        .map((d) => `<li>${link(d.name, d.url)}<span>${esc(d.reason)}</span></li>`)
+        .join("")}</ul></div>`;
+    }).join("");
+  }
+
+  $("#n-sources").textContent = SOURCES.length;
+  $("#n-kbzhu").textContent = SOURCES.filter((s) => s.kbzhu === "yes").length;
+  $("#n-free").textContent = SOURCES.filter((s) => s.cost === "free" || s.cost === "freemium").length;
+  $("#n-live").textContent = SOURCES.filter((s) => s.evidence === "live").length;
+  $("#n-dead").textContent = DEAD.length;
+
+  ["q", "only-kbzhu", "only-free"].forEach((id) => $("#" + id).addEventListener("input", render));
+  render();
+  renderDead();
+})();
+</script>
