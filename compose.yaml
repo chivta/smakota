@@ -12,12 +12,6 @@ x-calbot: &calbot
   cap_drop:
     - ALL
   restart: unless-stopped
-  healthcheck:
-    test: ["CMD", "/calbot", "--help"]
-    interval: 30s
-    timeout: 5s
-    retries: 3
-    start_period: 10s
 
 services:
   api:
@@ -25,10 +19,24 @@ services:
     command: ["api"]
     expose:
       - "8080"
+    healthcheck:
+      test: ["CMD", "/calbot", "health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
+        condition: service_healthy
+
+  # Long polling allows one consumer per token, so this stays at one replica.
+  bot:
+    <<: *calbot
+    command: ["bot"]
+    depends_on:
+      api:
         condition: service_healthy
 
   scheduler:

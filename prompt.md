@@ -139,7 +139,8 @@ Services:
 
 | Service | Notes |
 |---|---|
-| `api` | HTTP API, Telegram webhook target, serves the Mini App bundle. Migrations run on startup, no separate step |
+| `api` | HTTP API, serves the Mini App bundle. Migrations run on startup, no separate step |
+| `bot` | Telegram client, long polling. One replica, since a token allows one consumer |
 | `scheduler` | Same image, `scheduler` subcommand. Owns every recurring job below |
 | `postgres` | Named volume, scheduled `pg_dump` to off-host storage |
 | `redis` | Cache and rate limiting only, never a source of truth |

@@ -56,11 +56,13 @@ func run(ctx context.Context, cfg config.Config, args []string) error {
 		return runSeed(ctx, cfg)
 	case "migrate":
 		return runMigrate(ctx, cfg)
+	case "health":
+		return runHealth(ctx, cfg)
 	}
 
 	return usage()
 }
 
 func usage() error {
-	return fmt.Errorf("usage: calbot <api|bot|scheduler|ingest NAME|seed|migrate>")
+	return fmt.Errorf("usage: calbot <api|bot|scheduler|ingest NAME|seed|migrate|health>")
 }
