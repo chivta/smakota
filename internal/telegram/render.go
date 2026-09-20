@@ -100,9 +100,9 @@ func (b *Bot) recentsMarkup(recents []RecentFood) *tele.ReplyMarkup {
 	rows := make([]tele.Row, 0, len(recents)+1)
 
 	for _, r := range recents {
-		label := fmt.Sprintf("%s · %.0f г", truncate(r.Name, 30), r.LastGrams)
+		label := fmt.Sprintf("%s · %.0f г", truncate(r.Food.Name, 30), r.LastGrams)
 		rows = append(rows, m.Row(m.Data(label, cbRecent,
-			fmt.Sprint(r.FoodID), fmt.Sprintf("%.0f", r.LastGrams))))
+			fmt.Sprint(r.Food.ID), fmt.Sprintf("%.0f", r.LastGrams))))
 	}
 	rows = append(rows, m.Row(m.Data(T("btn.repeat"), cbRepeat)))
 

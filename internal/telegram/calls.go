@@ -37,10 +37,9 @@ func (r ResolveResult) HighConfidence() bool {
 }
 
 type RecentFood struct {
-	FoodID    int64   `json:"food_id"`
-	Name      string  `json:"name"`
-	LastGrams float64 `json:"last_grams"`
-	LogCount  int     `json:"log_count"`
+	Food      domain.Food `json:"food"`
+	Count     int         `json:"count"`
+	LastGrams float64     `json:"last_grams"`
 }
 
 type DayView struct {
