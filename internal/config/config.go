@@ -21,7 +21,10 @@ type Config struct {
 	DatabaseURL string `env:"DATABASE_URL" validate:"required,url"`
 	RedisURL    string `env:"REDIS_URL"    validate:"required,url"`
 
-	BotToken       string  `env:"BOT_TOKEN"        validate:"required"`
+	BotToken string `env:"BOT_TOKEN"        validate:"required"`
+	// ServiceToken authenticates the bot process against the API. The Mini App
+	// authenticates with Telegram initData instead and never sees this.
+	ServiceToken   string  `env:"SERVICE_TOKEN"    validate:"required,min=32"`
 	AllowedUsers   []int64 `env:"ALLOWED_USERS"    envSeparator:","`
 	TelegramAPIURL string  `env:"TELEGRAM_API_URL"`
 

@@ -1,0 +1,171 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/http"
+	"time"
+
+	"github.com/arvlas/calbot/internal/api"
+	"github.com/arvlas/calbot/internal/config"
+	"github.com/arvlas/calbot/internal/ingest"
+	"github.com/arvlas/calbot/internal/ingest/off"
+	"github.com/arvlas/calbot/internal/ingest/silpo"
+	"github.com/arvlas/calbot/internal/resolver"
+	"github.com/arvlas/calbot/internal/storage/postgres"
+	"github.com/arvlas/calbot/internal/telegram"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
+	"github.com/rs/zerolog/log"
+)
+
+// shutdownGrace is how long in-flight requests get to finish after a signal.
+const shutdownGrace = 15 * time.Second
+
+// container holds the dependency graph. The whole of it is visible here, in one
+// place, without tooling.
+type container struct {
+	cfg      config.Config
+	pool     *pgxpool.Pool
+	users    *postgres.UserRepo
+	foods    *postgres.FoodRepo
+	logs     *postgres.LogRepo
+	weights  *postgres.WeightRepo
+	reviews  *postgres.ReviewRepo
+	attempts *postgres.AttemptRepo
+	ingests  *postgres.IngestRepo
+	locker   *postgres.Locker
+	registry *ingest.Registry
+	runner   *ingest.Runner
+	resolver *resolver.Resolver
+}
+
+// build connects to the database, runs migrations, and wires every component.
+func build(ctx context.Context, cfg config.Config) (*container, error) {
+	err := postgres.Migrate(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("run migrations: %w", err)
+	}
+
+	pool, err := postgres.Connect(ctx, cfg.DatabaseURL)
+	if err != nil {
+		return nil, fmt.Errorf("connect database: %w", err)
+	}
+
+	foods := postgres.NewFoodRepo(pool)
+	ingests := postgres.NewIngestRepo(pool)
+
+	httpClient := ingest.NewHTTPClient(nil, cfg.IngestUserAgent)
+	registry, err := ingest.NewRegistry(
+		off.New(httpClient, cfg.OFFDumpURL),
+		silpo.New(httpClient, cfg.SilpoBranchID),
+	)
+	if err != nil {
+		pool.Close()
+		return nil, fmt.Errorf("build ingest registry: %w", err)
+	}
+
+	return &container{
+		cfg:      cfg,
+		pool:     pool,
+		users:    postgres.NewUserRepo(pool),
+		foods:    foods,
+		logs:     postgres.NewLogRepo(pool),
+		weights:  postgres.NewWeightRepo(pool),
+		reviews:  postgres.NewReviewRepo(pool),
+		attempts: postgres.NewAttemptRepo(pool),
+		ingests:  ingests,
+		locker:   postgres.NewLocker(pool),
+		registry: registry,
+		runner:   ingest.NewRunner(ingestStore{repo: ingests}),
+		resolver: resolver.NewResolver(searchAdapter{repo: foods}, resolver.NewLLM(openai.NewClient(option.WithAPIKey(cfg.OpenAIKey)), cfg.OpenAIModel)),
+	}, nil
+}
+
+func (c *container) close() {
+	c.pool.Close()
+}
+
+func runMigrate(ctx context.Context, cfg config.Config) error {
+	return postgres.Migrate(ctx, cfg.DatabaseURL)
+}
+
+func runAPI(ctx context.Context, cfg config.Config) error {
+	c, err := build(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer c.close()
+
+	server := api.New(api.Deps{
+		Users:        c.users,
+		Foods:        c.foods,
+		Logs:         c.logs,
+		Weights:      c.weights,
+		Reviews:      c.reviews,
+		Attempts:     c.attempts,
+		Resolver:     c.resolver,
+		BotToken:     cfg.BotToken,
+		ServiceToken: cfg.ServiceToken,
+		Production:   cfg.IsProduction(),
+	})
+
+	httpServer := &http.Server{
+		Addr:    cfg.HTTPAddr,
+		Handler: server.Router(cfg.IsProduction()),
+	}
+
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), shutdownGrace)
+		defer cancel()
+
+		shutdownErr := httpServer.Shutdown(shutdownCtx)
+		if shutdownErr != nil {
+			log.Error().Err(shutdownErr).Msg("http shutdown failed")
+		}
+	}()
+
+	log.Info().Str("addr", cfg.HTTPAddr).Msg("api listening")
+
+	err = httpServer.ListenAndServe()
+	if errors.Is(err, http.ErrServerClosed) {
+		return nil
+	}
+	return err
+}
+
+func runBot(ctx context.Context, cfg config.Config) error {
+	bot, err := telegram.New(telegram.Options{
+		Token:        cfg.BotToken,
+		APIURL:       cfg.TelegramAPIURL,
+		APIBaseURL:   cfg.PublicURL,
+		ServiceToken: cfg.ServiceToken,
+		AllowedUsers: cfg.AllowedUsers,
+	})
+	if err != nil {
+		return err
+	}
+
+	log.Info().Msg("bot polling")
+	bot.Start(ctx)
+	return nil
+}
+
+func runIngest(ctx context.Context, cfg config.Config, name string) error {
+	c, err := build(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer c.close()
+
+	adapter, err := c.registry.Resolve(name)
+	if err != nil {
+		return err
+	}
+
+	log.Info().Str("source", name).Msg("ingest starting")
+	return c.runner.Run(ctx, adapter)
+}

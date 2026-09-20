@@ -1,0 +1,27 @@
+services:
+  api:
+    build:
+      context: .
+      target: dev
+    image: calbot-dev
+    command:
+      - air
+      - --build.cmd
+      - go build -o /tmp/air/calbot ./cmd/calbot
+      - --build.entrypoint
+      - /tmp/air/calbot
+      - --tmp_dir
+      - /tmp/air
+      - --
+      - api
+    environment:
+      GOCACHE: /tmp/go-build
+      GOMODCACHE: /tmp/go-mod
+    volumes:
+      - .:/app:ro
+    ports:
+      - "8080:8080"
+
+  postgres:
+    ports:
+      - "5432:5432"
