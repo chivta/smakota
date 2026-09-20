@@ -42,7 +42,7 @@ seeding priority list.
 
 ## Layout
 
-    cmd/calbot          subcommands: api, scheduler, ingest <name>, seed
+    cmd/calbot          subcommands: api, bot, scheduler, ingest <name>, seed, migrate, health
     internal/domain     entities, sentinel errors, the confidence ladder
     internal/config     every setting, validated at startup
     internal/storage    pgxpool, per-entity repos, embedded migrations
@@ -50,7 +50,18 @@ seeding priority list.
     internal/ingest     pipeline framework and one package per source
     internal/api        Gin handlers
     internal/telegram   telebot client
-    data/dishes         the curated catalogue seed
+    internal/seed       the curated catalogue, embedded in the binary
+
+## Two seams worth knowing
+
+**Alias matching.** `food_aliases.norm` is written by `FoodRepo.SeedCatalogue`
+and read by `FoodRepo.Search`, and both must use `resolver.Normalize`. Normalize
+with anything else and every curated entry silently stops matching.
+
+**Named-type adapters.** The ingest framework and the resolver each declare the
+storage they need on their own side, so neither imports the repository package.
+The field shapes agree; the named types do not. `cmd/calbot/adapters.go` is the
+only place that bridges them.
 
 ## Conventions
 
