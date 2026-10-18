@@ -8,9 +8,11 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/arvlas/calbot/internal/domain"
 	"github.com/arvlas/calbot/internal/ingest"
 	"golang.org/x/time/rate"
 )
@@ -19,6 +21,10 @@ const (
 	baseURL  = "https://sf-ecom-api.silpo.ua/v1/uk/branches/"
 	pageSize = 100
 	silpoRPS = rate.Limit(2)
+
+	// cursorDone is saved when a walk finishes so the next run starts over.
+	cursorDone      = "0"
+	cursorSeparator = ":"
 )
 
 // Adapter pages product search and fetches each product's detail record.
@@ -35,6 +41,15 @@ func New(httpClient *ingest.HTTPClient, branchID string) *Adapter {
 // Name returns the source identifier stored with catalogue rows.
 func (a *Adapter) Name() string { return "silpo" }
 
+// Сільпо's terms forbid reproduction, so its rows are rendered one at a time
+// and never exported.
+func (a *Adapter) Provenance() ingest.Provenance {
+	return ingest.Provenance{
+		LicenseClass: domain.LicenseLookupOnly,
+		Confidence:   domain.ConfidenceScraped,
+	}
+}
+
 type searchResponse struct {
 	Items    []searchItem `json:"items"`
 	Products []searchItem `json:"products"`
@@ -46,46 +61,80 @@ type searchItem struct {
 	ExternalProductID json.RawMessage `json:"externalProductId"`
 }
 
-// Fetch stores the numeric search offset in its cursor. Detail lookups always
-// use externalProductId and never the UUID id returned beside it.
+type category struct {
+	ID       string `json:"id"`
+	Slug     string `json:"slug"`
+	ParentID string `json:"parentId"`
+}
+
+type categoriesResponse struct {
+	Items []category `json:"items"`
+}
+
+// Fetch walks the leaf categories because the products endpoint rejects a
+// request without a filter. The cursor holds the category ID and the offset
+// inside it. Detail lookups always use externalProductId and never the UUID id
+// returned beside it.
 func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw) error) (string, error) {
 	a.http.ResetCache()
-	offset, err := parseCursor(cursor)
+	categorySlug, offset, err := parseCursor(cursor)
 	if err != nil {
 		return "", err
 	}
+	categorySlugs, err := a.leafCategories(ctx)
+	if err != nil {
+		return "", err
+	}
+	start := 0
+	if categorySlug != "" {
+		start = slices.Index(categorySlugs, categorySlug)
+		if start < 0 {
+			start, offset = 0, 0
+		}
+	}
+
+	for _, id := range categorySlugs[start:] {
+		err = a.fetchCategory(ctx, id, offset, emit)
+		if err != nil {
+			return "", err
+		}
+		offset = 0
+	}
+	return cursorDone, nil
+}
+
+func (a *Adapter) fetchCategory(ctx context.Context, categoryID string, offset int, emit func(ingest.Raw) error) error {
 	for {
-		searchURL := a.productsURL(offset)
-		response, requestErr := a.http.Get(ctx, a.Name(), searchURL, silpoRPS, true)
-		if requestErr != nil {
-			return "", requestErr
+		response, err := a.http.Get(ctx, a.Name(), a.productsURL(categoryID, offset), silpoRPS, true)
+		if err != nil {
+			return err
 		}
 		var result searchResponse
 		decodeErr := json.NewDecoder(response.Body).Decode(&result)
 		response.Body.Close()
 		if decodeErr != nil {
-			return "", fmt.Errorf("decode Silpo search offset %d: %w", offset, decodeErr)
+			return fmt.Errorf("decode Silpo category %s offset %d: %w", categoryID, offset, decodeErr)
 		}
 		items := result.Items
 		if len(items) == 0 {
 			items = result.Products
 		}
 		if len(items) == 0 {
-			return "0", nil
+			return nil
 		}
 
-		for _, item := range items {
+		for i, item := range items {
 			externalID := rawScalar(item.ExternalProductID)
 			if externalID == "" {
-				return "", fmt.Errorf("Silpo search item is missing externalProductId")
+				return fmt.Errorf("Silpo search item is missing externalProductId")
 			}
 			raw, detailErr := a.fetchDetail(ctx, externalID)
 			if detailErr != nil {
-				return "", detailErr
+				return detailErr
 			}
-			raw.Cursor = strconv.Itoa(offset)
+			raw.Cursor = formatCursor(categoryID, offset+i+1)
 			if emitErr := emit(raw); emitErr != nil {
-				return "", emitErr
+				return emitErr
 			}
 		}
 
@@ -95,13 +144,50 @@ func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw
 			total = result.Count
 		}
 		if len(items) < pageSize || (total > 0 && offset >= total) {
-			return "0", nil
+			return nil
 		}
 	}
 }
 
-func (a *Adapter) productsURL(offset int) string {
+// leafCategories returns category IDs that no other category lists as its
+// parent. The products filter already includes children, so walking parents
+// too would fetch every product several times.
+func (a *Adapter) leafCategories(ctx context.Context) ([]string, error) {
+	response, err := a.http.Get(ctx, a.Name(), baseURL+url.PathEscape(a.branchID)+"/categories", silpoRPS, true)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		return nil, fmt.Errorf("read Silpo categories: %w", err)
+	}
+	var categories []category
+	if json.Unmarshal(body, &categories) != nil {
+		var wrapped categoriesResponse
+		err = json.Unmarshal(body, &wrapped)
+		if err != nil {
+			return nil, fmt.Errorf("decode Silpo categories: %w", err)
+		}
+		categories = wrapped.Items
+	}
+
+	parents := make(map[string]bool, len(categories))
+	for _, c := range categories {
+		parents[c.ParentID] = true
+	}
+	var ids []string
+	for _, c := range categories {
+		if c.Slug != "" && !parents[c.ID] {
+			ids = append(ids, c.Slug)
+		}
+	}
+	return ids, nil
+}
+
+func (a *Adapter) productsURL(categoryID string, offset int) string {
 	query := url.Values{}
+	query.Set("category", categoryID)
 	query.Set("limit", strconv.Itoa(pageSize))
 	query.Set("offset", strconv.Itoa(offset))
 	query.Set("deliveryType", "DeliveryHome")
@@ -128,9 +214,11 @@ func (a *Adapter) fetchDetail(ctx context.Context, externalID string) (ingest.Ra
 		return ingest.Raw{}, fmt.Errorf("decode Silpo product %s: %w", externalID, err)
 	}
 	product := productObject(detail)
-	nutrients, err := nutrientAttributes(product)
-	if err != nil {
-		return ingest.Raw{}, fmt.Errorf("Silpo product %s: %w", externalID, err)
+	nutrients, nutrientErr := nutrientAttributes(product)
+	if nutrientErr != nil {
+		// Leaving the values empty sends the row to the reject queue with a
+		// reason, which keeps it visible instead of ending the category walk.
+		nutrients = map[string]string{}
 	}
 	return ingest.Raw{
 		ExternalID: externalID,
@@ -242,13 +330,23 @@ func readJSON(response *http.Response) ([]byte, error) {
 	return io.ReadAll(response.Body)
 }
 
-func parseCursor(cursor string) (int, error) {
-	if cursor == "" {
-		return 0, nil
+func formatCursor(categoryID string, offset int) string {
+	return categoryID + cursorSeparator + strconv.Itoa(offset)
+}
+
+// parseCursor accepts the empty string and cursorDone as "start from the
+// first category".
+func parseCursor(cursor string) (string, int, error) {
+	if cursor == "" || cursor == cursorDone {
+		return "", 0, nil
 	}
-	offset, err := strconv.Atoi(cursor)
+	categoryID, offsetText, ok := strings.Cut(cursor, cursorSeparator)
+	if !ok || categoryID == "" {
+		return "", 0, fmt.Errorf("invalid Silpo cursor %q", cursor)
+	}
+	offset, err := strconv.Atoi(offsetText)
 	if err != nil || offset < 0 {
-		return 0, fmt.Errorf("invalid Silpo cursor %q", cursor)
+		return "", 0, fmt.Errorf("invalid Silpo cursor %q", cursor)
 	}
-	return offset, nil
+	return categoryID, offset, nil
 }
