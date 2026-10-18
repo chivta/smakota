@@ -18,6 +18,8 @@ const (
 	crawlTimeout    = 2 * time.Hour
 	dumpTimeout     = 6 * time.Hour
 	quickJobTimeout = 5 * time.Minute
+	// allIngestTimeout covers every adapter running back to back.
+	allIngestTimeout = dumpTimeout + 4*crawlTimeout
 )
 
 func runScheduler(ctx context.Context, cfg config.Config) error {
@@ -58,6 +60,15 @@ func (c *container) jobs() []scheduler.Job {
 		ingestJob("off-delta", scheduler.Daily(3, 0), crawlTimeout),
 		ingestJob("off-full", scheduler.Weekly(time.Sunday, 2, 0), dumpTimeout),
 		ingestJob("silpo", scheduler.Weekly(time.Monday, 2, 0), crawlTimeout),
+		ingestJob("zakaz", scheduler.Weekly(time.Tuesday, 2, 0), crawlTimeout),
+		ingestJob("proe", scheduler.Weekly(time.Wednesday, 2, 0), crawlTimeout),
+		ingestJob("usda", scheduler.Weekly(time.Thursday, 2, 0), crawlTimeout),
+		{
+			Name:    "ingest-all",
+			Due:     scheduler.Never(),
+			Timeout: allIngestTimeout,
+			Run:     c.ingestAll,
+		},
 		{
 			Name:    "review-digest",
 			Due:     scheduler.Daily(6, 0),

@@ -11,7 +11,10 @@ import (
 	"github.com/arvlas/calbot/internal/config"
 	"github.com/arvlas/calbot/internal/ingest"
 	"github.com/arvlas/calbot/internal/ingest/off"
+	"github.com/arvlas/calbot/internal/ingest/proe"
 	"github.com/arvlas/calbot/internal/ingest/silpo"
+	"github.com/arvlas/calbot/internal/ingest/usda"
+	"github.com/arvlas/calbot/internal/ingest/zakaz"
 	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/arvlas/calbot/internal/telegram"
@@ -20,6 +23,9 @@ import (
 	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 )
+
+// ingestAllName is the `ingest` argument and manual job that run every adapter.
+const ingestAllName = "all"
 
 // shutdownGrace is how long in-flight requests get to finish after a signal.
 const shutdownGrace = 15 * time.Second
@@ -61,6 +67,9 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 	registry, err := ingest.NewRegistry(
 		off.New(httpClient, cfg.OFFDumpURL),
 		silpo.New(httpClient, cfg.SilpoBranchID),
+		zakaz.New(zakaz.NewHTTPClient(cfg.IngestUserAgent), cfg.ZakazStoreIDs),
+		proe.New(httpClient, cfg.ProeBaseURL),
+		usda.New(httpClient, cfg.USDAAPIKey, cfg.USDAQueries),
 	)
 	if err != nil {
 		pool.Close()
@@ -161,6 +170,10 @@ func runIngest(ctx context.Context, cfg config.Config, name string) error {
 	}
 	defer c.close()
 
+	if name == ingestAllName {
+		return c.ingestAll(ctx)
+	}
+
 	adapter, err := c.registry.Resolve(name)
 	if err != nil {
 		return err
@@ -168,4 +181,21 @@ func runIngest(ctx context.Context, cfg config.Config, name string) error {
 
 	log.Info().Str("source", name).Msg("ingest starting")
 	return c.runner.Run(ctx, adapter)
+}
+
+// ingestAll runs every adapter and fails only when none of them succeeded, so
+// one dead provider does not break the deploy's smoke test.
+func (c *container) ingestAll(ctx context.Context) error {
+	results := c.runner.RunAll(ctx, c.registry.Adapters())
+
+	var failures []error
+	for _, result := range results {
+		if result.Err != nil {
+			failures = append(failures, fmt.Errorf("%s: %w", result.Source, result.Err))
+		}
+	}
+	if len(results) > 0 && len(failures) == len(results) {
+		return fmt.Errorf("every ingest source failed: %w", errors.Join(failures...))
+	}
+	return ctx.Err()
 }
