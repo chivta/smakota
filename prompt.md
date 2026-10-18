@@ -36,6 +36,11 @@ all caller decisions, served by returning the underlying numbers.
 
 *One credential scheme.* A bearer token, whatever issued it.
 
+*Everything worth analysing later is recorded now.* Logging, ingestion and
+search all emit counts and timings under stable names, and the facts an
+analytics question would need are rows, not log lines. Adding a metric after
+the fact is cheap; recovering a history that was never written is not.
+
 ---
 
 **Food database**
@@ -92,6 +97,35 @@ path logging has to take.
 
 ---
 
+**Metrics and analytics**
+
+Two separate concerns, both first-class.
+
+*Operational*, exposed for scraping: request rate and latency by route, error
+counts by component, resolver latency and outcome by retriever, ingest rows by
+source and stage, and seconds since each source last succeeded.
+
+*Analytical*, kept as rows because questions arrive later than data: every
+search with its query, retriever, result count and whether a result was then
+logged; every entry with how it was created, inline or from a food, and which
+source that food came from; every ingest run with its counts and reason for
+rejection. These answer which sources actually get eaten, where search fails,
+and whether the catalogue is improving, none of which a counter can reconstruct.
+
+Recording stays off the read path. A caller that wants an event recorded sends
+it; search itself writes nothing.
+
+---
+
+**Postponed**
+
+*Fast logging.* One-tap repeats, frequency-ranked suggestions, and a terse input
+syntax for chat-style clients. Deliberately deferred: it is a client experience
+built from range reads and writes the API already needs to expose, and
+designing it now would put a flow back into the server.
+
+---
+
 **Acceptance criteria**
 
 - Logging a food the database has never seen takes one request.
@@ -101,6 +135,8 @@ path logging has to take.
 - No endpoint returns a shape assembled for one screen.
 - Catalogue freshness per source is observable, and a stale source is visible
   without reading logs.
+- Any analytics question about search quality or catalogue usefulness can be
+  answered from stored rows without replaying logs.
 
 ---
 

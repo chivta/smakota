@@ -87,7 +87,11 @@
 <main>
 
 <h1>calbot API redesign</h1>
-<p class="sub">From a Telegram bot's workflow to a food-logging API three different clients can build on.</p>
+<p class="sub">From a Telegram bot's workflow to a food-logging API with smart search. No clients in scope.</p>
+
+<div class="lead" style="border-left-color: var(--muted);">
+<p class="note" style="margin:0;"><strong>Status.</strong> The Telegram bot has been deleted from the repo and is recoverable from history. There are no clients, and none are in scope until the API is stable. Fast logging — one-tap repeats, frequency ranking, terse chat input — is postponed for the same reason: it is a client experience, and designing it now would put a flow back into the server.</p>
+</div>
 
 <div class="lead">
 <p><strong>The one idea.</strong> Right now, logging food requires the food to exist first. You send an input string, the server searches, you pick a match, you log the match. That is the same gate FatSecret puts in front of you, re-implemented — and it is the thing you said annoys you most.</p>
@@ -247,15 +251,10 @@ POST /v1/entries
   <textarea data-note="off" rows="2" placeholder="Notes, reasoning, or your own answer…"></textarea>
 </div>
 
-<div class="decision" id="viewmodels">
-  <h3>Bot view-model endpoints during migration</h3>
-  <p class="framing">The day view, repeat-yesterday, recents and weight trend are all replaced by range queries in the redesign. The bot depends on all four today.</p>
-  <div class="opts">
-      <label class="opt"><input type="radio" name="viewmodels" value="keep"><span><strong>Keep them until the bot moves</strong><em> — two surfaces to maintain for a while</em></span></label>
-      <label class="opt"><input type="radio" name="viewmodels" value="cut"><span><strong>Cut them immediately and port the bot first</strong><em> — shorter migration, bot breaks until ported</em></span></label>
-      <label class="opt"><input type="radio" name="viewmodels" value="other"><span><strong>Something else</strong></span></label>
-  </div>
-  <textarea data-note="viewmodels" rows="2" placeholder="Notes, reasoning, or your own answer…"></textarea>
+<div class="decision answered" id="viewmodels">
+  <h3>Bot view-model endpoints<span class="blocks">settled by deletion</span></h3>
+  <p class="framing">The day view, repeat-yesterday, recents and weight trend existed for the bot. With no client depending on them, they can be removed in phase 4 with nothing to port. Left here as a record, not a question.</p>
+  <textarea data-note="viewmodels" rows="2" placeholder="Notes…"></textarea>
 </div>
 
 <div class="decision" id="order">
@@ -287,6 +286,10 @@ POST /v1/entries
   <button id="reset" class="secondary">Clear</button>
   <span id="status" class="note"></span>
 </div>
+
+<h2>Metrics, decided</h2>
+
+<p>Operational counters already exist for requests, errors, resolver latency and ingest freshness. The gap is analytical: search quality and catalogue usefulness are questions you will ask months from now, and a counter cannot reconstruct them. Store rows — every search with its query, retriever, result count and whether anything was logged afterwards; every entry with whether it came from inline values or a catalogue food, and which source that food came from. Keep the writes off the read path, so search stays free to call and a caller records an event when it wants one.</p>
 
 <h2>Already settled</h2>
 
