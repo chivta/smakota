@@ -16,7 +16,17 @@ import (
 // Adapter fetches source rows. It does not have access to catalogue storage.
 type Adapter interface {
 	Name() string
+	// Provenance is the adapter's own, so a new source is a new package rather
+	// than an edit to the shared normalizer.
+	Provenance() Provenance
 	Fetch(ctx context.Context, cursor string, emit func(Raw) error) (nextCursor string, err error)
+}
+
+// Provenance is what a source's rows are allowed to do: whether they may leave
+// the host, and what they may overwrite during promote.
+type Provenance struct {
+	LicenseClass domain.LicenseClass
+	Confidence   int
 }
 
 // RawProduct is the source-shaped product data required by the shared
@@ -35,12 +45,17 @@ type RawProduct struct {
 
 // Raw is one fetched source row. Cursor is optional and allows page-level
 // progress to be persisted during a long Fetch call.
+//
+// Setting Checkpoint saves progress without staging anything, which adapters
+// walking a large index use so a killed run resumes where it stopped instead of
+// re-reading the pages that held no products.
 type Raw struct {
 	ExternalID string
 	Payload    []byte
 	SourceURL  string
 	Cursor     string
 	Product    RawProduct
+	Checkpoint bool
 }
 
 // Normalized is a product ready for validation and staging.
@@ -117,14 +132,28 @@ func (r *Runner) Run(ctx context.Context, adapter Adapter) error {
 
 func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *Counts) error {
 	source := adapter.Name()
+
+	// Promote what a previous run staged before fetching more. Promotion
+	// otherwise happens only after a complete fetch, so an interrupted crawl
+	// would leave its rows staged and invisible until the next full pass.
+	err := r.promotePending(ctx, source, counts)
+	if err != nil {
+		return err
+	}
+
 	cursor, _, err := r.store.Cursor(ctx, source)
 	if err != nil {
 		return fmt.Errorf("read %s cursor: %w", source, err)
 	}
 
 	nextCursor, err := adapter.Fetch(ctx, cursor, func(raw Raw) error {
+		// A checkpoint is progress only. Inferring it from empty fields would
+		// swallow a malformed product row that belongs in the reject queue.
+		if raw.Checkpoint {
+			return r.store.SetCursor(ctx, source, raw.Cursor)
+		}
 		counts.Fetched++
-		normalized, normalizeErr := Normalize(source, raw)
+		normalized, normalizeErr := Normalize(source, adapter.Provenance(), raw)
 		if normalizeErr != nil {
 			return r.reject(ctx, runID, source, raw, normalizeErr, counts)
 		}
@@ -161,14 +190,21 @@ func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *
 		}
 	}
 
-	const promoteBatchSize = 500
+	return r.promotePending(ctx, source, counts)
+}
+
+const promoteBatchSize = 500
+
+// promotePending publishes every staged row for a source. Promote is the only
+// writer of the catalogue, and it refuses to overwrite a higher-confidence row.
+func (r *Runner) promotePending(ctx context.Context, source string, counts *Counts) error {
 	for {
 		pending, pendingErr := r.store.PendingStaged(ctx, source, promoteBatchSize)
 		if pendingErr != nil {
 			return fmt.Errorf("list pending %s products: %w", source, pendingErr)
 		}
 		if len(pending) == 0 {
-			break
+			return nil
 		}
 		for _, item := range pending {
 			result, promoteErr := r.store.Promote(ctx, item)
@@ -180,14 +216,13 @@ func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *
 				continue
 			}
 			if !result.Conflict {
-				err = r.store.MarkStatus(ctx, item.ID, "conflict", "promotion produced no result")
-				if err != nil {
-					return fmt.Errorf("mark %s product %s conflict: %w", source, item.ExternalID, err)
+				markErr := r.store.MarkStatus(ctx, item.ID, "conflict", "promotion produced no result")
+				if markErr != nil {
+					return fmt.Errorf("mark %s product %s conflict: %w", source, item.ExternalID, markErr)
 				}
 			}
 		}
 	}
-	return nil
 }
 
 func (r *Runner) reject(ctx context.Context, runID int64, source string, raw Raw, cause error, counts *Counts) error {

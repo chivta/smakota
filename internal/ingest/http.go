@@ -13,7 +13,14 @@ import (
 	"golang.org/x/time/rate"
 )
 
-const maxHTTPAttempts = 5
+const (
+	maxHTTPAttempts = 5
+
+	// requestTimeout bounds one attempt. The client-wide timeout alone lets a
+	// stalled upstream hold a crawl for timeout times attempts, which reads as
+	// a hang with nothing logged.
+	requestTimeout = 15 * time.Second
+)
 
 type cachedResponse struct {
 	etag       string
@@ -64,8 +71,10 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 			return nil, fmt.Errorf("wait for %s rate limit: %w", source, err)
 		}
 
-		request, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+		attemptCtx, cancelAttempt := context.WithTimeout(ctx, requestTimeout)
+		request, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, rawURL, nil)
 		if err != nil {
+			cancelAttempt()
 			return nil, fmt.Errorf("create %s request: %w", source, err)
 		}
 		request.Header.Set("User-Agent", c.userAgent)
@@ -78,6 +87,7 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 
 		response, err := c.client.Do(request)
 		if err != nil {
+			cancelAttempt()
 			if attempt == maxHTTPAttempts-1 {
 				return nil, fmt.Errorf("send %s request: %w", source, err)
 			}
@@ -90,6 +100,7 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 		lastStatus = response.StatusCode
 		if response.StatusCode == http.StatusNotModified && cacheETag {
 			response.Body.Close()
+			cancelAttempt()
 			cached, ok := c.cached(rawURL)
 			if !ok {
 				return nil, fmt.Errorf("%s returned 304 without a cached response", source)
@@ -99,6 +110,7 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 		if response.StatusCode == http.StatusTooManyRequests || response.StatusCode >= 500 {
 			delay := retryDelay(response, attempt)
 			response.Body.Close()
+			cancelAttempt()
 			if attempt == maxHTTPAttempts-1 {
 				break
 			}
@@ -109,14 +121,20 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 		}
 		if response.StatusCode < 200 || response.StatusCode >= 300 {
 			response.Body.Close()
+			cancelAttempt()
 			return nil, fmt.Errorf("%s request returned HTTP %d", source, response.StatusCode)
 		}
 		if cacheETag && response.Header.Get("ETag") != "" {
 			response, err = c.remember(request, response)
+			cancelAttempt()
 			if err != nil {
 				return nil, fmt.Errorf("cache %s response: %w", source, err)
 			}
+			return response, nil
 		}
+		// A streamed body outlives this function, so the attempt context is
+		// released by the caller closing the body.
+		context.AfterFunc(ctx, cancelAttempt)
 		return response, nil
 	}
 	return nil, fmt.Errorf("%s request failed after %d attempts with HTTP %d", source, maxHTTPAttempts, lastStatus)

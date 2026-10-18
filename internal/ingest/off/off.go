@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/arvlas/calbot/internal/domain"
 	"github.com/arvlas/calbot/internal/ingest"
 	"golang.org/x/time/rate"
 )
@@ -36,6 +37,14 @@ func New(httpClient *ingest.HTTPClient, dumpURL string) *Adapter {
 
 // Name returns the source identifier stored with catalogue rows.
 func (a *Adapter) Name() string { return "off" }
+
+// Open Food Facts is ODbL, so its rows may be redistributed with attribution.
+func (a *Adapter) Provenance() ingest.Provenance {
+	return ingest.Provenance{
+		LicenseClass: domain.LicenseRedistributable,
+		Confidence:   domain.ConfidenceOpenDB,
+	}
+}
 
 // Fetch chooses the full or delta mode from the persisted cursor prefix.
 func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw) error) (string, error) {

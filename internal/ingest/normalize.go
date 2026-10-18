@@ -16,7 +16,7 @@ var (
 )
 
 // Normalize converts an adapter row to the catalogue's per-100 g format.
-func Normalize(source string, raw Raw) (Normalized, error) {
+func Normalize(source string, provenance Provenance, raw Raw) (Normalized, error) {
 	if strings.TrimSpace(raw.ExternalID) == "" {
 		return Normalized{}, fmt.Errorf("missing external ID")
 	}
@@ -51,17 +51,9 @@ func Normalize(source string, raw Raw) (Normalized, error) {
 		SourceID:  source,
 		SourceURL: raw.SourceURL,
 		FetchedAt: &fetchedAt,
-	}
 
-	switch source {
-	case "off":
-		food.LicenseClass = domain.LicenseRedistributable
-		food.Confidence = domain.ConfidenceOpenDB
-	case "silpo":
-		food.LicenseClass = domain.LicenseLookupOnly
-		food.Confidence = domain.ConfidenceScraped
-	default:
-		return Normalized{}, fmt.Errorf("unknown source %q", source)
+		LicenseClass: provenance.LicenseClass,
+		Confidence:   provenance.Confidence,
 	}
 	return food, nil
 }

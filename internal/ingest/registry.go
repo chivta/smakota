@@ -1,6 +1,9 @@
 package ingest
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // Registry resolves scheduler and CLI job names to adapters.
 type Registry struct {
@@ -45,4 +48,25 @@ func (r *Registry) Resolve(name string) (Adapter, error) {
 		return nil, fmt.Errorf("unknown ingest job %q", name)
 	}
 	return adapter, nil
+}
+
+// Adapters returns each registered adapter once, ordered by registered name,
+// even when several job names point at the same adapter.
+func (r *Registry) Adapters() []Adapter {
+	names := make([]string, 0, len(r.adapters))
+	for name := range r.adapters {
+		names = append(names, name)
+	}
+	slices.Sort(names)
+
+	var adapters []Adapter
+	seen := make(map[Adapter]bool, len(names))
+	for _, name := range names {
+		adapter := r.adapters[name]
+		if !seen[adapter] {
+			seen[adapter] = true
+			adapters = append(adapters, adapter)
+		}
+	}
+	return adapters
 }
