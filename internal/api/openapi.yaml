@@ -1,0 +1,556 @@
+openapi: 3.0.3
+info:
+  title: calbot API
+  version: "1.0"
+  description: |
+    Backend for the Ukrainian calorie-logging bot. It holds no Telegram-specific
+    logic: the bot and the Mini App are both clients of these routes.
+
+    Errors carry a machine-readable `code` and never a human message. Clients
+    map a code to text in their own translation map.
+servers:
+  - url: http://localhost
+    description: Local compose stack, through Caddy
+  - url: http://localhost:8080
+    description: The api service directly
+
+tags:
+  - name: user
+  - name: food
+  - name: day
+  - name: weight
+  - name: ops
+
+components:
+  securitySchemes:
+    miniApp:
+      type: http
+      scheme: tma
+      description: |
+        The Mini App sends `Authorization: tma <initData>`. The payload is
+        verified against the bot token with Telegram's HMAC scheme and is
+        rejected once it is older than 24 hours.
+    service:
+      type: http
+      scheme: bearer
+      description: |
+        The bot process sends `Authorization: Bearer <SERVICE_TOKEN>` together
+        with an `X-Telegram-User-ID` header naming the user it acts for. The
+        header is trusted only after the token matches.
+
+  parameters:
+    telegramUser:
+      name: X-Telegram-User-ID
+      in: header
+      required: false
+      schema: { type: integer, format: int64 }
+      description: Required with the service scheme; ignored with miniApp.
+    date:
+      name: date
+      in: path
+      required: true
+      schema: { type: string, example: "2026-10-18" }
+      description: An ISO date, or the literal `today`.
+
+  responses:
+    BadRequest:
+      description: Validation failed at the boundary
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Missing or invalid credentials
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: No such resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    DayLocked:
+      description: The day is older than the 7-day editable window
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          enum: [NOT_FOUND, INVALID_INPUT, UNAUTHORIZED, FORBIDDEN, CONFLICT,
+                 RATE_LIMITED, DAY_LOCKED, UNRESOLVED, NOT_EXPORTABLE, INTERNAL]
+      required: [code]
+
+    Nutrition:
+      type: object
+      description: Always per 100 g on a Food, and absolute on a LogEntry.
+      properties:
+        kcal: { type: number }
+        protein: { type: number }
+        fat: { type: number }
+        carbs: { type: number }
+
+    Portion:
+      type: object
+      description: A named amount the user can pick instead of typing grams.
+      properties:
+        name: { type: string, example: "тарілка" }
+        grams: { type: number, example: 350 }
+        is_default: { type: boolean }
+
+    Food:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        kind:
+          type: string
+          enum: [product, dish]
+          description: Packaged branded goods versus home dishes and raw ingredients.
+        name: { type: string, example: "Куряче філе, варене" }
+        brand: { type: string }
+        barcode: { type: string }
+        state:
+          type: string
+          enum: [raw, cooked, as_sold]
+          description: Which preparation the values describe. Shown in the UI.
+        nutrition: { $ref: '#/components/schemas/Nutrition' }
+        package_g: { type: number, nullable: true }
+        source_id: { type: string, example: "curated" }
+        source_url: { type: string }
+        portions:
+          type: array
+          items: { $ref: '#/components/schemas/Portion' }
+
+    Candidate:
+      type: object
+      properties:
+        food: { $ref: '#/components/schemas/Food' }
+        score:
+          type: number
+          description: Trigram similarity, 0 to 1.
+
+    Quantity:
+      type: object
+      description: An amount found in the phrase itself, which skips the portion step.
+      properties:
+        grams: { type: number }
+        count: { type: number }
+        portion: { type: string }
+
+    ResolveResult:
+      type: object
+      properties:
+        candidates:
+          type: array
+          items: { $ref: '#/components/schemas/Candidate' }
+        quantity: { $ref: '#/components/schemas/Quantity' }
+        confidence:
+          type: string
+          enum: [none, low, high]
+          description: |
+            `high` means one candidate is clearly ahead, so the client shows a
+            single result with the portion pre-filled. `low` means show up to
+            five. `none` means nothing cleared the floor.
+
+    RecentFood:
+      type: object
+      properties:
+        food: { $ref: '#/components/schemas/Food' }
+        count: { type: integer }
+        last_grams:
+          type: number
+          description: The amount this user last logged, used for one-tap re-logging.
+
+    LogEntry:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        food_id: { type: integer, format: int64 }
+        food_name: { type: string }
+        grams: { type: number }
+        nutrition: { $ref: '#/components/schemas/Nutrition' }
+        logged_at: { type: string, format: date-time }
+        day: { type: string, format: date }
+
+    Day:
+      type: object
+      description: A flat chronological list. No meal grouping.
+      properties:
+        date: { type: string, format: date }
+        entries:
+          type: array
+          items: { $ref: '#/components/schemas/LogEntry' }
+        consumed: { $ref: '#/components/schemas/Nutrition' }
+        kcal_target: { type: integer }
+        protein_target: { type: integer }
+
+    User:
+      type: object
+      properties:
+        id: { type: integer, format: int64 }
+        sex: { type: string, enum: [male, female] }
+        age: { type: integer }
+        height_cm: { type: integer }
+        weight_kg: { type: number }
+        goal_weight_kg: { type: number }
+        activity_level:
+          type: string
+          enum: [sedentary, light, moderate, high, very_high]
+        kcal_target: { type: integer }
+        protein_target_g: { type: integer }
+        timezone: { type: string }
+        nudge_at: { type: string, example: "20:00" }
+        nudge_enabled: { type: boolean }
+        weekly_summary_enabled: { type: boolean }
+
+    WeightPoint:
+      type: object
+      properties:
+        measured_on: { type: string, format: date }
+        average_kg:
+          type: number
+          description: A 7-day rolling average. Day-over-day deltas are not exposed.
+
+security:
+  - miniApp: []
+  - service: []
+
+paths:
+  /health:
+    get:
+      tags: [ops]
+      summary: Liveness probe
+      security: []
+      responses:
+        "204": { description: Serving }
+
+  /metrics:
+    get:
+      tags: [ops]
+      summary: Prometheus metrics
+      security: []
+      responses:
+        "200":
+          description: Metrics in the Prometheus text format
+          content:
+            text/plain: {}
+
+  /v1/register:
+    post:
+      tags: [user]
+      summary: Complete onboarding
+      description: |
+        Computes maintenance from Mifflin-St Jeor and a deficit target, and
+        returns both so the client can show the rationale and offer an override.
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sex, age, height_cm, weight_kg, goal_weight_kg, activity_level]
+              properties:
+                sex: { type: string, enum: [male, female] }
+                age: { type: integer, minimum: 14, maximum: 100 }
+                height_cm: { type: integer, minimum: 120, maximum: 230 }
+                weight_kg: { type: number, minimum: 30, maximum: 300 }
+                goal_weight_kg: { type: number, minimum: 30, maximum: 300 }
+                activity_level:
+                  type: string
+                  enum: [sedentary, light, moderate, high, very_high]
+                timezone: { type: string, default: "Europe/Kyiv" }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user: { $ref: '#/components/schemas/User' }
+                  maintenance: { type: integer }
+                  target: { type: integer }
+                  protein: { type: integer }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/me:
+    get:
+      tags: [user]
+      summary: Current user
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+        "404": { $ref: '#/components/responses/NotFound' }
+    put:
+      tags: [user]
+      summary: Update targets and notification settings
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                kcal_target: { type: integer, minimum: 800, maximum: 6000 }
+                protein_target_g: { type: integer, minimum: 20, maximum: 400 }
+                weight_kg: { type: number, minimum: 30, maximum: 300 }
+                nudge_at: { type: string, example: "20:00" }
+                nudge_enabled: { type: boolean }
+                weekly_summary_enabled: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/User' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+
+  /v1/resolve:
+    post:
+      tags: [food]
+      summary: Resolve free-form input to ranked candidates
+      description: |
+        The single pipeline every input mode converges on. A quantity found in
+        the phrase is returned so the client can skip the portion step. An
+        attempt is recorded for the acceptance metrics, and input that resolves
+        to nothing is queued for catalogue expansion.
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [input, input_type]
+              properties:
+                input: { type: string, maxLength: 500, example: "варена курка 150г" }
+                input_type:
+                  type: string
+                  enum: [text, voice, photo, barcode, recent]
+                clarification:
+                  type: string
+                  maxLength: 500
+                  description: Added after the user taps "не те", alongside the original input.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ResolveResult' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "422":
+          description: Nothing cleared the confidence floor; the query was queued for review
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/foods/{id}:
+    get:
+      tags: [food]
+      summary: One catalogue entry
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/telegramUser' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Food' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /v1/barcode/{code}:
+    get:
+      tags: [food]
+      summary: Look up a product by barcode
+      description: A miss is queued for review so the barcode reaches the expansion list.
+      parameters:
+        - { name: code, in: path, required: true, schema: { type: string }, example: "04820001316384" }
+        - { $ref: '#/components/parameters/telegramUser' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Food' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /v1/foods/personal:
+    post:
+      tags: [food]
+      summary: Create a personal entry
+      description: |
+        The escape hatch after two failed refinements. The entry belongs to this
+        user and outranks the catalogue for them.
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, kcal]
+              properties:
+                name: { type: string, maxLength: 200 }
+                kcal: { type: number, maximum: 900 }
+                protein: { type: number, maximum: 100 }
+                fat: { type: number, maximum: 100 }
+                carbs: { type: number, maximum: 100 }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Food' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+
+  /v1/recents:
+    get:
+      tags: [food]
+      summary: Quick-add list
+      description: The 8 most-logged foods from the last 14 days, each with its last-used amount.
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/RecentFood' }
+
+  /v1/days/{date}:
+    get:
+      tags: [day]
+      summary: One day
+      parameters:
+        - { $ref: '#/components/parameters/date' }
+        - { $ref: '#/components/parameters/telegramUser' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Day' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+
+  /v1/days/{date}/repeat:
+    post:
+      tags: [day]
+      summary: Copy the previous day onto this one
+      parameters:
+        - { $ref: '#/components/parameters/date' }
+        - { $ref: '#/components/parameters/telegramUser' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  copied: { type: integer }
+
+  /v1/entries:
+    post:
+      tags: [day]
+      summary: Log a food
+      description: |
+        Accepts either grams or a count of a named portion. Nutrition is
+        snapshotted at save time, so a later catalogue correction never rewrites
+        a day already logged.
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [food_id]
+              properties:
+                food_id: { type: integer, format: int64 }
+                grams: { type: number, maximum: 5000 }
+                portion_name: { type: string, example: "тарілка" }
+                portion_qty: { type: number, maximum: 50 }
+                logged_at: { type: string, format: date-time }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/LogEntry' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "404": { $ref: '#/components/responses/NotFound' }
+
+  /v1/entries/{id}:
+    patch:
+      tags: [day]
+      summary: Change an entry's amount
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/telegramUser' }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [grams]
+              properties:
+                grams: { type: number, maximum: 5000 }
+      responses:
+        "204": { description: Updated }
+        "409": { $ref: '#/components/responses/DayLocked' }
+    delete:
+      tags: [day]
+      summary: Delete an entry
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
+        - { $ref: '#/components/parameters/telegramUser' }
+      responses:
+        "204": { description: Deleted }
+        "409": { $ref: '#/components/responses/DayLocked' }
+
+  /v1/weights:
+    post:
+      tags: [weight]
+      summary: Record a weigh-in
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [weight_kg]
+              properties:
+                weight_kg: { type: number, minimum: 30, maximum: 300 }
+                measured_on: { type: string, format: date-time }
+      responses:
+        "201": { description: Created }
+        "400": { $ref: '#/components/responses/BadRequest' }
+
+  /v1/weights/trend:
+    get:
+      tags: [weight]
+      summary: 7-day rolling average
+      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/WeightPoint' }

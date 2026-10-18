@@ -2,6 +2,7 @@ package api
 
 import (
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
@@ -17,7 +18,7 @@ const userIDKey = "user_id"
 func observability() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if path == "/health" || path == "/metrics" {
+		if path == "/health" || path == "/metrics" || strings.HasPrefix(path, "/docs") {
 			c.Next()
 			return
 		}
