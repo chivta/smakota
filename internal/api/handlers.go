@@ -2,7 +2,6 @@ package api
 
 import (
 	"net/http"
-	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
 	"github.com/arvlas/calbot/internal/resolver"
@@ -10,75 +9,19 @@ import (
 )
 
 func (s *Server) getMe(c *gin.Context) {
-	telegramID, err := s.identify(c)
+	userID, err := currentUser(c)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	user, err := s.users.GetByTelegramID(c.Request.Context(), telegramID)
+	user, err := s.users.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
 	c.JSON(http.StatusOK, user)
-}
-
-type registerRequest struct {
-	Sex           domain.Sex           `json:"sex"            validate:"required,oneof=male female"`
-	Age           int                  `json:"age"            validate:"required,gte=14,lte=100"`
-	HeightCM      int                  `json:"height_cm"      validate:"required,gte=120,lte=230"`
-	WeightKG      float64              `json:"weight_kg"      validate:"required,gte=30,lte=300"`
-	GoalWeightKG  float64              `json:"goal_weight_kg" validate:"required,gte=30,lte=300"`
-	ActivityLevel domain.ActivityLevel `json:"activity_level" validate:"required,oneof=sedentary light moderate high very_high"`
-	Timezone      string               `json:"timezone"`
-}
-
-// register completes onboarding. It computes maintenance and the deficit target
-// from Mifflin-St Jeor and returns both, so the client can show the rationale
-// and offer a manual override.
-func (s *Server) register(c *gin.Context) {
-	telegramID, err := s.identify(c)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	var req registerRequest
-	err = bindAndValidate(c, &req)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	now := time.Now()
-	user := domain.User{
-		TelegramID:    telegramID,
-		Sex:           req.Sex,
-		Age:           req.Age,
-		HeightCM:      req.HeightCM,
-		WeightKG:      req.WeightKG,
-		GoalWeightKG:  req.GoalWeightKG,
-		ActivityLevel: req.ActivityLevel,
-		Timezone:      defaultString(req.Timezone, "Europe/Kyiv"),
-		OnboardedAt:   &now,
-	}
-	user.KcalTarget = user.SuggestedTarget()
-	user.ProteinTargetG = user.SuggestedProtein()
-
-	created, err := s.users.Create(c.Request.Context(), user)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusCreated, gin.H{
-		"user":        created,
-		"maintenance": created.Maintenance(),
-		"target":      created.KcalTarget,
-		"protein":     created.ProteinTargetG,
-	})
 }
 
 type updateMeRequest struct {
@@ -88,7 +31,7 @@ type updateMeRequest struct {
 }
 
 func (s *Server) updateMe(c *gin.Context) {
-	telegramID, err := s.identify(c)
+	userID, err := currentUser(c)
 	if err != nil {
 		RespondWithError(c, err)
 		return
@@ -101,7 +44,7 @@ func (s *Server) updateMe(c *gin.Context) {
 		return
 	}
 
-	user, err := s.users.GetByTelegramID(c.Request.Context(), telegramID)
+	user, err := s.users.GetByID(c.Request.Context(), userID)
 	if err != nil {
 		RespondWithError(c, err)
 		return

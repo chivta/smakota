@@ -5,8 +5,13 @@ info:
   license:
     name: Proprietary
   description: |
-    Backend for the Ukrainian calorie-logging bot. It holds no Telegram-specific
-    logic: the bot and the Mini App are both clients of these routes.
+    Backend for the Ukrainian calorie-logging bot. It holds no client-specific
+    logic: every client is just a holder of a bearer token.
+
+    There is no signup. An operator creates a user with `calbot user create`,
+    then issues that user a token with `calbot token issue <user-id>`, which
+    prints it once; only its hash is stored. `calbot token revoke <token-id>`
+    disables it.
 
     Errors carry a machine-readable `code` and never a human message. Clients
     map a code to text in their own translation map.
@@ -18,7 +23,7 @@ servers:
 
 tags:
   - name: user
-    description: Onboarding, targets and timezone.
+    description: The current user, targets and timezone.
   - name: food
     description: The catalogue, and resolving free-form input against it.
   - name: day
@@ -28,32 +33,13 @@ tags:
 
 components:
   securitySchemes:
-    miniApp:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: |
-        The Mini App sends `Authorization: tma <initData>`. Paste the whole
-        value including the `tma ` prefix. `tma` is not a registered HTTP auth
-        scheme, so this is declared as an apiKey header to keep Authorize and
-        Try it out working.
-
-        The payload is verified against the bot token with Telegram's HMAC
-        scheme and is rejected once it is older than 24 hours.
-    telegramUser:
-      type: apiKey
-      in: header
-      name: X-Telegram-User-ID
-      description: |
-        The Telegram user the call acts for. Required alongside the service
-        token, which is trusted only after the token itself matches.
-    service:
+    bearerAuth:
       type: http
       scheme: bearer
       description: |
-        The bot process sends `Authorization: Bearer <SERVICE_TOKEN>` together
-        with an `X-Telegram-User-ID` header naming the user it acts for. The
-        header is trusted only after the token matches.
+        A per-user API token, sent as `Authorization: Bearer <token>`. The token
+        identifies the user; nothing else in the request can change who the call
+        acts for.
 
   responses:
     BadRequest:
@@ -223,9 +209,7 @@ components:
         timezone: { type: string }
 
 security:
-  - miniApp: []
-  - service: []
-    telegramUser: []
+  - bearerAuth: []
 
 paths:
   /health:
@@ -248,46 +232,6 @@ paths:
           description: Metrics in the Prometheus text format
           content:
             text/plain: {}
-
-  /v1/register:
-    post:
-      tags: [user]
-      summary: Complete onboarding
-      operationId: registerUser
-      description: |
-        Computes maintenance from Mifflin-St Jeor and a deficit target, and
-        returns both so the client can show the rationale and offer an override.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [sex, age, height_cm, weight_kg, goal_weight_kg, activity_level]
-              properties:
-                sex: { type: string, enum: [male, female] }
-                age: { type: integer, minimum: 14, maximum: 100 }
-                height_cm: { type: integer, minimum: 120, maximum: 230 }
-                weight_kg: { type: number, minimum: 30, maximum: 300 }
-                goal_weight_kg: { type: number, minimum: 30, maximum: 300 }
-                activity_level:
-                  type: string
-                  enum: [sedentary, light, moderate, high, very_high]
-                timezone: { type: string, default: "Europe/Kyiv" }
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  user: { $ref: '#/components/schemas/User' }
-                  maintenance: { type: integer }
-                  target: { type: integer }
-                  protein: { type: integer }
-        "400": { $ref: '#/components/responses/BadRequest' }
-        "401": { $ref: '#/components/responses/Unauthorized' }
 
   /v1/me:
     get:

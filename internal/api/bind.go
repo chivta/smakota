@@ -84,13 +84,6 @@ func endOfDay(day time.Time) time.Time {
 	return truncateDay(day).AddDate(0, 0, 1).Add(-time.Microsecond)
 }
 
-func defaultString(v, fallback string) string {
-	if v == "" {
-		return fallback
-	}
-	return v
-}
-
 // applyIf copies a patch field onto the target when the client sent it.
 func applyIf[T any](src *T, dst *T) {
 	if src != nil {

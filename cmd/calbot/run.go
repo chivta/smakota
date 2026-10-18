@@ -39,6 +39,7 @@ type container struct {
 	cfg      config.Config
 	pool     *pgxpool.Pool
 	users    *postgres.UserRepo
+	tokens   *postgres.TokenRepo
 	foods    *postgres.FoodRepo
 	logs     *postgres.LogRepo
 	reviews  *postgres.ReviewRepo
@@ -81,6 +82,7 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		cfg:      cfg,
 		pool:     pool,
 		users:    postgres.NewUserRepo(pool),
+		tokens:   postgres.NewTokenRepo(pool),
 		foods:    foods,
 		logs:     postgres.NewLogRepo(pool),
 		reviews:  postgres.NewReviewRepo(pool),
@@ -108,13 +110,12 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 	defer c.close()
 
 	server := api.New(api.Deps{
-		Users:        c.users,
-		Foods:        c.foods,
-		Logs:         c.logs,
-		Reviews:      c.reviews,
-		Resolver:     c.resolver,
-		BotToken:     cfg.BotToken,
-		ServiceToken: cfg.ServiceToken,
+		Users:    c.users,
+		Tokens:   c.tokens,
+		Foods:    c.foods,
+		Logs:     c.logs,
+		Reviews:  c.reviews,
+		Resolver: c.resolver,
 	})
 
 	go c.trackIngestAge(ctx)

@@ -1,5 +1,5 @@
-// Package api serves the HTTP interface. It holds no Telegram-specific logic:
-// the bot and the Mini App are both clients of these routes.
+// Package api serves the HTTP interface. It holds no client-specific logic:
+// every caller authenticates with a per-user bearer token.
 package api
 
 import (
@@ -16,9 +16,12 @@ import (
 // The repository surfaces the handlers actually use, declared here on the
 // consumer side. The concrete types live in internal/storage/postgres.
 type userStore interface {
-	GetByTelegramID(ctx context.Context, telegramID int64) (domain.User, error)
-	Create(ctx context.Context, u domain.User) (domain.User, error)
+	GetByID(ctx context.Context, id int64) (domain.User, error)
 	Update(ctx context.Context, u domain.User) error
+}
+
+type tokenStore interface {
+	Authenticate(ctx context.Context, hash []byte) (int64, error)
 }
 
 type foodStore interface {
@@ -44,34 +47,31 @@ type foodResolver interface {
 
 // Deps is the wiring surface. main builds it; nothing here reaches for a global.
 type Deps struct {
-	Users        userStore
-	Foods        foodStore
-	Logs         logStore
-	Reviews      reviewStore
-	Resolver     foodResolver
-	BotToken     string
-	ServiceToken string
+	Users    userStore
+	Tokens   tokenStore
+	Foods    foodStore
+	Logs     logStore
+	Reviews  reviewStore
+	Resolver foodResolver
 }
 
 type Server struct {
-	users        userStore
-	foods        foodStore
-	logs         logStore
-	reviews      reviewStore
-	resolver     foodResolver
-	botToken     string
-	serviceToken string
+	users    userStore
+	tokens   tokenStore
+	foods    foodStore
+	logs     logStore
+	reviews  reviewStore
+	resolver foodResolver
 }
 
 func New(d Deps) *Server {
 	return &Server{
-		users:        d.Users,
-		foods:        d.Foods,
-		logs:         d.Logs,
-		reviews:      d.Reviews,
-		resolver:     d.Resolver,
-		botToken:     d.BotToken,
-		serviceToken: d.ServiceToken,
+		users:    d.Users,
+		tokens:   d.Tokens,
+		foods:    d.Foods,
+		logs:     d.Logs,
+		reviews:  d.Reviews,
+		resolver: d.Resolver,
 	}
 }
 
@@ -104,10 +104,6 @@ func (s *Server) Router(production bool) *gin.Engine {
 		v1.PATCH("/entries/:id", s.updateEntry)
 		v1.DELETE("/entries/:id", s.deleteEntry)
 	}
-
-	// Onboarding creates the user, so it authenticates the caller without
-	// requiring one to already exist.
-	r.POST("/v1/register", s.register)
 
 	return r
 }
