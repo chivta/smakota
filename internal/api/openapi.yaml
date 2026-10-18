@@ -42,6 +42,13 @@ components:
 
         The payload is verified against the bot token with Telegram's HMAC
         scheme and is rejected once it is older than 24 hours.
+    telegramUser:
+      type: apiKey
+      in: header
+      name: X-Telegram-User-ID
+      description: |
+        The Telegram user the call acts for. Required alongside the service
+        token, which is trusted only after the token itself matches.
     service:
       type: http
       scheme: bearer
@@ -51,12 +58,6 @@ components:
         header is trusted only after the token matches.
 
   parameters:
-    telegramUser:
-      name: X-Telegram-User-ID
-      in: header
-      required: false
-      schema: { type: integer, format: int64 }
-      description: Required with the service scheme; ignored with miniApp.
     date:
       name: date
       in: path
@@ -229,6 +230,7 @@ components:
 security:
   - miniApp: []
   - service: []
+    telegramUser: []
 
 paths:
   /health:
@@ -260,7 +262,6 @@ paths:
       description: |
         Computes maintenance from Mifflin-St Jeor and a deficit target, and
         returns both so the client can show the rationale and offer an override.
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
         content:
@@ -298,7 +299,6 @@ paths:
       tags: [user]
       summary: Current user
       operationId: getCurrentUser
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       responses:
         "200":
           description: OK
@@ -311,7 +311,6 @@ paths:
       tags: [user]
       summary: Update targets and notification settings
       operationId: updateCurrentUser
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
         content:
@@ -343,7 +342,6 @@ paths:
         the phrase is returned so the client can skip the portion step. An
         attempt is recorded for the acceptance metrics, and input that resolves
         to nothing is queued for catalogue expansion.
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
         content:
@@ -380,7 +378,6 @@ paths:
       operationId: getFood
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
-        - { $ref: '#/components/parameters/telegramUser' }
       responses:
         "200":
           description: OK
@@ -397,7 +394,6 @@ paths:
       description: A miss is queued for review so the barcode reaches the expansion list.
       parameters:
         - { name: code, in: path, required: true, schema: { type: string }, example: "04820001316384" }
-        - { $ref: '#/components/parameters/telegramUser' }
       responses:
         "200":
           description: OK
@@ -414,7 +410,6 @@ paths:
       description: |
         The escape hatch after two failed refinements. The entry belongs to this
         user and outranks the catalogue for them.
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
         content:
@@ -442,7 +437,6 @@ paths:
       summary: Quick-add list
       operationId: listRecents
       description: The 8 most-logged foods from the last 14 days, each with its last-used amount.
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       responses:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "200":
@@ -460,7 +454,6 @@ paths:
       operationId: getDay
       parameters:
         - { $ref: '#/components/parameters/date' }
-        - { $ref: '#/components/parameters/telegramUser' }
       responses:
         "200":
           description: OK
@@ -476,7 +469,6 @@ paths:
       operationId: repeatDay
       parameters:
         - { $ref: '#/components/parameters/date' }
-        - { $ref: '#/components/parameters/telegramUser' }
       responses:
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
@@ -498,7 +490,6 @@ paths:
         Accepts either grams or a count of a named portion. Nutrition is
         snapshotted at save time, so a later catalogue correction never rewrites
         a day already logged.
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
         content:
@@ -528,7 +519,6 @@ paths:
       operationId: updateEntry
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
-        - { $ref: '#/components/parameters/telegramUser' }
       requestBody:
         required: true
         content:
@@ -547,7 +537,6 @@ paths:
       operationId: deleteEntry
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
-        - { $ref: '#/components/parameters/telegramUser' }
       responses:
         "204": { description: Deleted }
         "409": { $ref: '#/components/responses/DayLocked' }
@@ -557,7 +546,6 @@ paths:
       tags: [weight]
       summary: Record a weigh-in
       operationId: createWeight
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
         content:
@@ -577,7 +565,6 @@ paths:
       tags: [weight]
       summary: 7-day rolling average
       operationId: getWeightTrend
-      parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       responses:
         "401": { $ref: '#/components/responses/Unauthorized' }
         "200":
