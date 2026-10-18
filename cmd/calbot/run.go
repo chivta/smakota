@@ -37,7 +37,6 @@ type container struct {
 	users    *postgres.UserRepo
 	foods    *postgres.FoodRepo
 	logs     *postgres.LogRepo
-	weights  *postgres.WeightRepo
 	reviews  *postgres.ReviewRepo
 	attempts *postgres.AttemptRepo
 	ingests  *postgres.IngestRepo
@@ -81,7 +80,6 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		users:    postgres.NewUserRepo(pool),
 		foods:    foods,
 		logs:     postgres.NewLogRepo(pool),
-		weights:  postgres.NewWeightRepo(pool),
 		reviews:  postgres.NewReviewRepo(pool),
 		attempts: postgres.NewAttemptRepo(pool),
 		ingests:  ingests,
@@ -111,7 +109,6 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 		Users:        c.users,
 		Foods:        c.foods,
 		Logs:         c.logs,
-		Weights:      c.weights,
 		Reviews:      c.reviews,
 		Attempts:     c.attempts,
 		Resolver:     c.resolver,

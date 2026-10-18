@@ -34,7 +34,7 @@ func (a searchAdapter) Search(ctx context.Context, p resolver.SearchParams) ([]r
 
 	out := make([]resolver.Candidate, len(found))
 	for i, c := range found {
-		out[i] = resolver.Candidate{Food: c.Food, Score: c.Score}
+		out[i] = resolver.Candidate{Food: c.Food, Score: c.Score, Bonus: c.Bonus}
 	}
 	return out, nil
 }

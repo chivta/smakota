@@ -1,11 +1,17 @@
 package api
 
 import (
+	"math"
 	"net/http"
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	defaultEntriesLimit = 100
+	maxEntriesLimit     = 500
 )
 
 type addEntryRequest struct {
@@ -95,51 +101,48 @@ func resolveGrams(food domain.Food, req addEntryRequest) (float64, error) {
 	return 100, nil
 }
 
-func (s *Server) getDay(c *gin.Context) {
+// listEntries is the history read: a flat page of entries, newest first. It
+// computes no totals; callers sum what they need.
+func (s *Server) listEntries(c *gin.Context) {
 	userID, err := currentUser(c)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	day, err := pathDate(c, "date")
+	today := truncateDay(time.Now())
+	from, err := queryDate(c, "from", today)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+	to, err := queryDate(c, "to", today)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+	limit, err := queryInt(c, "limit", defaultEntriesLimit, 1, maxEntriesLimit)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+	offset, err := queryInt(c, "offset", 0, 0, math.MaxInt32)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+	if to.Before(from) {
+		RespondWithError(c, domain.ErrInvalidInput)
+		return
+	}
+
+	entries, err := s.logs.Range(c.Request.Context(), userID, from, to, limit, offset)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	entries, err := s.logs.Day(c.Request.Context(), userID, day)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	telegramID, err := s.identify(c)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	user, err := s.users.GetByTelegramID(c.Request.Context(), telegramID)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	view := domain.Day{
-		Date:          day,
-		Entries:       entries,
-		KcalTarget:    user.KcalTarget,
-		ProteinTarget: user.ProteinTargetG,
-	}
-	for _, e := range entries {
-		view.Consumed.Kcal += e.Nutrition.Kcal
-		view.Consumed.Protein += e.Nutrition.Protein
-		view.Consumed.Fat += e.Nutrition.Fat
-		view.Consumed.Carbs += e.Nutrition.Carbs
-	}
-
-	c.JSON(http.StatusOK, view)
+	c.JSON(http.StatusOK, entries)
 }
 
 type updateEntryRequest struct {
@@ -195,84 +198,4 @@ func (s *Server) deleteEntry(c *gin.Context) {
 	}
 
 	c.Status(http.StatusNoContent)
-}
-
-// repeatDay backs "повторити вчорашній день": copy every entry from the source
-// date onto the target date.
-func (s *Server) repeatDay(c *gin.Context) {
-	userID, err := currentUser(c)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	target, err := pathDate(c, "date")
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	source := target.AddDate(0, 0, -1)
-	copied, err := s.logs.CopyDay(c.Request.Context(), userID, source, target)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, gin.H{"copied": copied})
-}
-
-type addWeightRequest struct {
-	WeightKG   float64    `json:"weight_kg"   validate:"required,gte=30,lte=300"`
-	MeasuredOn *time.Time `json:"measured_on"`
-}
-
-func (s *Server) addWeight(c *gin.Context) {
-	userID, err := currentUser(c)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	var req addWeightRequest
-	err = bindAndValidate(c, &req)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	on := time.Now()
-	if req.MeasuredOn != nil {
-		on = *req.MeasuredOn
-	}
-
-	err = s.weights.Add(c.Request.Context(), domain.Weight{
-		UserID:     userID,
-		WeightKG:   req.WeightKG,
-		MeasuredOn: truncateDay(on),
-	})
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	c.Status(http.StatusCreated)
-}
-
-// getWeightTrend returns the rolling average only. Day-over-day deltas are
-// deliberately not exposed.
-func (s *Server) getWeightTrend(c *gin.Context) {
-	userID, err := currentUser(c)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	points, err := s.weights.RollingAverage(c.Request.Context(), userID, weightTrendDays)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, points)
 }

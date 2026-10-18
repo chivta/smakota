@@ -29,10 +29,12 @@ type SearchParams struct {
 	Limit  int
 }
 
-// Candidate is one food and its normalized trigram match score.
+// Candidate is one food, its normalized trigram match score, and the history
+// bonus that was added to it when ranking.
 type Candidate struct {
 	Food  domain.Food `json:"food"`
 	Score float64     `json:"score"`
+	Bonus float64     `json:"bonus"`
 }
 
 // ConfidenceBand controls whether the client shows one match or a choice list.

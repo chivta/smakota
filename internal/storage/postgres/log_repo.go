@@ -37,15 +37,16 @@ func (r *LogRepo) Add(ctx context.Context, e domain.LogEntry) (domain.LogEntry, 
 	return e, nil
 }
 
-func (r *LogRepo) Day(ctx context.Context, userID int64, day time.Time) ([]domain.LogEntry, error) {
+func (r *LogRepo) Range(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]domain.LogEntry, error) {
 	rows, err := r.pool.Query(ctx, `
 		select id, user_id, coalesce(food_id, 0), food_name, grams,
 			kcal, protein, fat, carbs, logged_at, day
 		from log_entries
-		where user_id = $1 and day = $2
-		order by logged_at, id`, userID, dayString(day))
+		where user_id = $1 and day between $2 and $3
+		order by logged_at desc, id desc
+		limit $4 offset $5`, userID, dayString(from), dayString(to), limit, offset)
 	if err != nil {
-		return nil, fmt.Errorf("list day log entries: %w", err)
+		return nil, fmt.Errorf("list log entries: %w", err)
 	}
 	defer rows.Close()
 
@@ -53,12 +54,12 @@ func (r *LogRepo) Day(ctx context.Context, userID int64, day time.Time) ([]domai
 	for rows.Next() {
 		e, scanErr := scanLogEntry(rows)
 		if scanErr != nil {
-			return nil, fmt.Errorf("scan day log entry: %w", scanErr)
+			return nil, fmt.Errorf("scan log entry: %w", scanErr)
 		}
 		entries = append(entries, e)
 	}
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate day log entries: %w", err)
+		return nil, fmt.Errorf("iterate log entries: %w", err)
 	}
 	return entries, nil
 }
@@ -126,26 +127,6 @@ func (r *LogRepo) Delete(ctx context.Context, userID, entryID int64) error {
 		return fmt.Errorf("commit log entry delete: %w", err)
 	}
 	return nil
-}
-
-func (r *LogRepo) CopyDay(ctx context.Context, userID int64, from, to time.Time) (int, error) {
-	result, err := r.pool.Exec(ctx, `
-		insert into log_entries (
-			user_id, food_id, food_name, grams, kcal, protein, fat, carbs,
-			logged_at, day
-		)
-		select le.user_id, le.food_id, le.food_name, le.grams, le.kcal,
-			le.protein, le.fat, le.carbs,
-			($3::date + (le.logged_at at time zone u.timezone)::time) at time zone u.timezone,
-			$3::date
-		from log_entries le
-		join users u on u.id = le.user_id
-		where le.user_id = $1 and le.day = $2::date
-		order by le.logged_at, le.id`, userID, dayString(from), dayString(to))
-	if err != nil {
-		return 0, fmt.Errorf("copy log day: %w", err)
-	}
-	return int(result.RowsAffected()), nil
 }
 
 func scanLogEntry(row pgx.Row) (domain.LogEntry, error) {

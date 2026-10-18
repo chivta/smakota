@@ -22,9 +22,7 @@ tags:
   - name: food
     description: The catalogue, and resolving free-form input against it.
   - name: day
-    description: Logged entries and the day view.
-  - name: weight
-    description: Optional weigh-ins, reported only as a rolling average.
+    description: Logged entries.
   - name: ops
     description: Probes and metrics. These need no credentials.
 
@@ -56,14 +54,6 @@ components:
         The bot process sends `Authorization: Bearer <SERVICE_TOKEN>` together
         with an `X-Telegram-User-ID` header naming the user it acts for. The
         header is trusted only after the token matches.
-
-  parameters:
-    date:
-      name: date
-      in: path
-      required: true
-      schema: { type: string, example: "2026-10-18" }
-      description: An ISO date, or the literal `today`.
 
   responses:
     BadRequest:
@@ -144,6 +134,11 @@ components:
         score:
           type: number
           description: Trigram similarity, 0 to 1.
+        bonus:
+          type: number
+          description: |
+            History affinity added to the score when ranking, 0 to 0.25. Zero
+            for foods the caller has never logged.
 
     Quantity:
       type: object
@@ -168,15 +163,6 @@ components:
             single result with the portion pre-filled. `low` means show up to
             five. `none` means nothing cleared the floor.
 
-    RecentFood:
-      type: object
-      properties:
-        food: { $ref: '#/components/schemas/Food' }
-        count: { type: integer }
-        last_grams:
-          type: number
-          description: The amount this user last logged, used for one-tap re-logging.
-
     LogEntry:
       type: object
       properties:
@@ -187,18 +173,6 @@ components:
         nutrition: { $ref: '#/components/schemas/Nutrition' }
         logged_at: { type: string, format: date-time }
         day: { type: string, format: date }
-
-    Day:
-      type: object
-      description: A flat chronological list. No meal grouping.
-      properties:
-        date: { type: string, format: date }
-        entries:
-          type: array
-          items: { $ref: '#/components/schemas/LogEntry' }
-        consumed: { $ref: '#/components/schemas/Nutrition' }
-        kcal_target: { type: integer }
-        protein_target: { type: integer }
 
     User:
       type: object
@@ -218,14 +192,6 @@ components:
         nudge_at: { type: string, example: "20:00" }
         nudge_enabled: { type: boolean }
         weekly_summary_enabled: { type: boolean }
-
-    WeightPoint:
-      type: object
-      properties:
-        measured_on: { type: string, format: date }
-        average_kg:
-          type: number
-          description: A 7-day rolling average. Day-over-day deltas are not exposed.
 
 security:
   - miniApp: []
@@ -431,57 +397,39 @@ paths:
               schema: { $ref: '#/components/schemas/Food' }
         "400": { $ref: '#/components/responses/BadRequest' }
 
-  /v1/recents:
+  /v1/entries:
     get:
-      tags: [food]
-      summary: Quick-add list
-      operationId: listRecents
-      description: The 8 most-logged foods from the last 14 days, each with its last-used amount.
+      tags: [day]
+      summary: List logged entries
+      operationId: listEntries
+      description: |
+        A flat array ordered by `logged_at` descending. No totals or targets are
+        computed; callers sum what they need.
+      parameters:
+        - name: from
+          in: query
+          description: First day, inclusive. Defaults to today.
+          schema: { type: string, format: date }
+        - name: to
+          in: query
+          description: Last day, inclusive. Defaults to today.
+          schema: { type: string, format: date }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
-        "401": { $ref: '#/components/responses/Unauthorized' }
         "200":
           description: OK
           content:
             application/json:
               schema:
                 type: array
-                items: { $ref: '#/components/schemas/RecentFood' }
-
-  /v1/days/{date}:
-    get:
-      tags: [day]
-      summary: One day
-      operationId: getDay
-      parameters:
-        - { $ref: '#/components/parameters/date' }
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema: { $ref: '#/components/schemas/Day' }
-        "400": { $ref: '#/components/responses/BadRequest' }
-
-  /v1/days/{date}/repeat:
-    post:
-      tags: [day]
-      summary: Copy the previous day onto this one
-      operationId: repeatDay
-      parameters:
-        - { $ref: '#/components/parameters/date' }
-      responses:
+                items: { $ref: '#/components/schemas/LogEntry' }
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  copied: { type: integer }
-
-  /v1/entries:
     post:
       tags: [day]
       summary: Log a food
@@ -540,37 +488,3 @@ paths:
       responses:
         "204": { description: Deleted }
         "409": { $ref: '#/components/responses/DayLocked' }
-
-  /v1/weights:
-    post:
-      tags: [weight]
-      summary: Record a weigh-in
-      operationId: createWeight
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [weight_kg]
-              properties:
-                weight_kg: { type: number, minimum: 30, maximum: 300 }
-                measured_on: { type: string, format: date-time }
-      responses:
-        "201": { description: Created }
-        "400": { $ref: '#/components/responses/BadRequest' }
-
-  /v1/weights/trend:
-    get:
-      tags: [weight]
-      summary: 7-day rolling average
-      operationId: getWeightTrend
-      responses:
-        "401": { $ref: '#/components/responses/Unauthorized' }
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                type: array
-                items: { $ref: '#/components/schemas/WeightPoint' }

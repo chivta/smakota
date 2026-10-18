@@ -9,14 +9,6 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// recentsWindowDays and recentsLimit back the quick-add keyboard: the 8
-// most-logged foods from the last 14 days.
-const (
-	recentsWindowDays = 14
-	recentsLimit      = 8
-	weightTrendDays   = 7
-)
-
 func (s *Server) getMe(c *gin.Context) {
 	telegramID, err := s.identify(c)
 	if err != nil {
@@ -288,20 +280,4 @@ func (s *Server) createPersonalFood(c *gin.Context) {
 	logSoftError(s.reviews.Add(c.Request.Context(), item), "queue manual entry")
 
 	c.JSON(http.StatusCreated, created)
-}
-
-func (s *Server) getRecents(c *gin.Context) {
-	userID, err := currentUser(c)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	recents, err := s.foods.Recents(c.Request.Context(), userID, recentsWindowDays, recentsLimit)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	c.JSON(http.StatusOK, recents)
 }

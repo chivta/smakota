@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/arvlas/calbot/internal/domain"
 
@@ -17,21 +18,47 @@ const foodColumns = `
 	f.source_id, f.source_url, f.license_class, f.confidence,
 	f.owner_user_id, f.fetched_at`
 
+// Starting values for the history bonus, to be tuned against real data.
+const (
+	AffinityWeight      = 0.25
+	FamiliarAtLogs      = 10
+	RecencyHalfLifeDays = 30
+	RecencyFloor        = 0.3
+)
+
+// affinityBonus is the additive ranking bonus on the 0..1 similarity scale.
+// It is capped at AffinityWeight, so history nudges ties but cannot lift a
+// poor lexical match above a good one. The search SQL mirrors this formula.
+func affinityBonus(logs int, daysSinceLast float64) float64 {
+	if logs <= 0 {
+		return 0
+	}
+	familiarity := math.Min(math.Log1p(float64(logs))/math.Log1p(FamiliarAtLogs), 1)
+	recency := math.Exp(-daysSinceLast / RecencyHalfLifeDays)
+	return AffinityWeight * familiarity * (RecencyFloor + (1-RecencyFloor)*recency)
+}
+
+// bonusSQL is affinityBonus over the history CTE's columns h.logs and
+// h.last_logged; $4..$7 are the four constants above.
+const bonusSQL = `coalesce(
+	$4::float8
+		* least(ln(1 + h.logs) / ln(1 + $5::float8), 1)
+		* ($7::float8 + (1 - $7::float8)
+			* exp(-extract(epoch from now() - h.last_logged) / 86400 / $6::float8)),
+	0)`
+
 type SearchParams struct {
 	Query  string
 	UserID *int64
 	Limit  int
 }
 
+// Candidate is one match. Score is the trigram similarity; Bonus is the
+// caller's history affinity added on top of it when ranking.
 type Candidate struct {
 	Food  domain.Food `json:"food"`
 	Score float64     `json:"score"`
-}
-
-type RecentFood struct {
-	Food      domain.Food `json:"food"`
-	Count     int         `json:"count"`
-	LastGrams float64     `json:"last_grams"`
+	Bonus float64     `json:"bonus"`
 }
 
 type FoodRepo struct {
@@ -82,18 +109,47 @@ func (r *FoodRepo) GetByBarcode(ctx context.Context, barcode string) (domain.Foo
 }
 
 func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, error) {
-	rows, err := r.pool.Query(ctx, `
-		select `+foodColumns+`, max(similarity(fa.norm, $1)) as score
-		from food_aliases fa
-		join foods f on f.id = fa.food_id
-		where fa.norm % $1
-			and (f.owner_user_id is null or f.owner_user_id = $2)
-		group by f.id
-		order by score desc,
-			case when f.owner_user_id = $2 then 1 else 0 end desc,
-			f.confidence desc,
-			f.id
-		limit $3`, p.Query, p.UserID, p.Limit)
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	if p.UserID == nil || *p.UserID == 0 {
+		rows, err = r.pool.Query(ctx, `
+			select `+foodColumns+`, max(similarity(fa.norm, $1)) as score, 0::float8 as bonus
+			from food_aliases fa
+			join foods f on f.id = fa.food_id
+			where fa.norm % $1
+				and f.owner_user_id is null
+			group by f.id
+			order by score desc,
+				f.confidence desc,
+				f.id
+			limit $2`, p.Query, p.Limit)
+	} else {
+		rows, err = r.pool.Query(ctx, `
+			with history as (
+				select food_id, count(*) as logs, max(logged_at) as last_logged
+				from log_entries
+				where user_id = $2 and food_id is not null
+				group by food_id
+			)
+			select * from (
+				select `+foodColumns+`, max(similarity(fa.norm, $1)) as score,
+					`+bonusSQL+` as bonus
+				from food_aliases fa
+				join foods f on f.id = fa.food_id
+				left join history h on h.food_id = f.id
+				where fa.norm % $1
+					and (f.owner_user_id is null or f.owner_user_id = $2)
+				group by f.id, h.logs, h.last_logged
+			) ranked
+			order by score + bonus desc,
+				case when owner_user_id = $2 then 1 else 0 end desc,
+				confidence desc,
+				id
+			limit $3`, p.Query, *p.UserID, p.Limit,
+			float64(AffinityWeight), float64(FamiliarAtLogs), float64(RecencyHalfLifeDays), float64(RecencyFloor))
+	}
 	if err != nil {
 		return nil, fmt.Errorf("search foods: %w", err)
 	}
@@ -118,54 +174,6 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 		}
 	}
 	return candidates, nil
-}
-
-func (r *FoodRepo) Recents(ctx context.Context, userID int64, days, limit int) ([]RecentFood, error) {
-	rows, err := r.pool.Query(ctx, `
-		select `+foodColumns+`, count(*)::int,
-			(array_agg(le.grams order by le.logged_at desc))[1]
-		from log_entries le
-		join users u on u.id = le.user_id
-		join foods f on f.id = le.food_id
-		where le.user_id = $1
-			and le.day >= (now() at time zone u.timezone)::date - greatest($2 - 1, 0)
-		group by f.id
-		order by count(*) desc, max(le.logged_at) desc, f.id
-		`, userID, days)
-	if err != nil {
-		return nil, fmt.Errorf("list recent foods: %w", err)
-	}
-	defer rows.Close()
-
-	recents := make([]RecentFood, 0, limit)
-	for rows.Next() {
-		var recent RecentFood
-		food, scanErr := scanFoodWithRecent(rows, &recent.Count, &recent.LastGrams)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan recent food: %w", scanErr)
-		}
-		personalToUser := food.LicenseClass == domain.LicenseUser &&
-			food.OwnerUserID != nil && *food.OwnerUserID == userID
-		if !food.LicenseClass.Exportable() && !personalToUser {
-			continue
-		}
-		recent.Food = food
-		recents = append(recents, recent)
-		if len(recents) == limit {
-			break
-		}
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate recent foods: %w", err)
-	}
-	rows.Close()
-	for i := range recents {
-		err = r.loadPortions(ctx, &recents[i].Food)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return recents, nil
 }
 
 func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error) {
@@ -272,21 +280,9 @@ func scanFoodWithScore(row pgx.Row) (Candidate, error) {
 		&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
 		&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
 		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
-		&candidate.Score,
+		&candidate.Score, &candidate.Bonus,
 	)
 	return candidate, err
-}
-
-func scanFoodWithRecent(row pgx.Row, count *int, lastGrams *float64) (domain.Food, error) {
-	var f domain.Food
-	err := row.Scan(
-		&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
-		&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
-		&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
-		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
-		count, lastGrams,
-	)
-	return f, err
 }
 
 func replaceFoodDetails(ctx context.Context, tx pgx.Tx, f domain.Food) error {

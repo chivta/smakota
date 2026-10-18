@@ -15,21 +15,6 @@ type LogEntry struct {
 	Day       time.Time `json:"day"`
 }
 
-// Day is the flat chronological view of one date. No meal grouping.
-type Day struct {
-	Date          time.Time  `json:"date"`
-	Entries       []LogEntry `json:"entries"`
-	Consumed      Nutrition  `json:"consumed"`
-	KcalTarget    int        `json:"kcal_target"`
-	ProteinTarget int        `json:"protein_target"`
-}
-
-// Remaining is target minus consumed. It goes negative past the target, and the
-// UI renders that identically to going under.
-func (d Day) Remaining() int {
-	return d.KcalTarget - int(d.Consumed.Kcal)
-}
-
 // InputType records how an entry reached the resolver.
 type InputType string
 
@@ -76,12 +61,4 @@ type ReviewItem struct {
 	Payload   []byte       `json:"payload,omitempty"`
 	Resolved  bool         `json:"resolved"`
 	CreatedAt time.Time    `json:"created_at"`
-}
-
-// Weight is one optional weigh-in. Shown only as a 7-day rolling average.
-type Weight struct {
-	ID         int64     `json:"id"`
-	UserID     int64     `json:"-"`
-	WeightKG   float64   `json:"weight_kg"`
-	MeasuredOn time.Time `json:"measured_on"`
 }

@@ -36,18 +36,32 @@ func pathInt(c *gin.Context, name string) (int64, error) {
 	return v, nil
 }
 
-// pathDate accepts an ISO date, or "today" for the client's convenience.
-func pathDate(c *gin.Context, name string) (time.Time, error) {
-	raw := c.Param(name)
-	if raw == "today" {
-		return truncateDay(time.Now()), nil
+// queryDate reads an optional ISO date query parameter.
+func queryDate(c *gin.Context, name string, fallback time.Time) (time.Time, error) {
+	raw := c.Query(name)
+	if raw == "" {
+		return fallback, nil
 	}
 
-	day, err := time.Parse("2006-01-02", raw)
+	day, err := time.Parse(time.DateOnly, raw)
 	if err != nil {
 		return time.Time{}, domain.ErrInvalidInput
 	}
 	return day, nil
+}
+
+// queryInt reads an optional integer query parameter within [lo, hi].
+func queryInt(c *gin.Context, name string, fallback, lo, hi int) (int, error) {
+	raw := c.Query(name)
+	if raw == "" {
+		return fallback, nil
+	}
+
+	v, err := strconv.Atoi(raw)
+	if err != nil || v < lo || v > hi {
+		return 0, domain.ErrInvalidInput
+	}
+	return v, nil
 }
 
 func truncateDay(t time.Time) time.Time {

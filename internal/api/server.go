@@ -9,7 +9,6 @@ import (
 
 	"github.com/arvlas/calbot/internal/domain"
 	"github.com/arvlas/calbot/internal/resolver"
-	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -25,22 +24,15 @@ type userStore interface {
 type foodStore interface {
 	GetByID(ctx context.Context, id int64) (domain.Food, error)
 	GetByBarcode(ctx context.Context, barcode string) (domain.Food, error)
-	Recents(ctx context.Context, userID int64, days, limit int) ([]postgres.RecentFood, error)
 	CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error)
 	LastAmount(ctx context.Context, userID, foodID int64) (float64, bool, error)
 }
 
 type logStore interface {
 	Add(ctx context.Context, e domain.LogEntry) (domain.LogEntry, error)
-	Day(ctx context.Context, userID int64, day time.Time) ([]domain.LogEntry, error)
+	Range(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]domain.LogEntry, error)
 	UpdateGrams(ctx context.Context, userID, entryID int64, grams float64) error
 	Delete(ctx context.Context, userID, entryID int64) error
-	CopyDay(ctx context.Context, userID int64, from, to time.Time) (int, error)
-}
-
-type weightStore interface {
-	Add(ctx context.Context, w domain.Weight) error
-	RollingAverage(ctx context.Context, userID int64, days int) ([]postgres.WeightPoint, error)
 }
 
 type reviewStore interface {
@@ -60,7 +52,6 @@ type Deps struct {
 	Users        userStore
 	Foods        foodStore
 	Logs         logStore
-	Weights      weightStore
 	Reviews      reviewStore
 	Attempts     attemptStore
 	Resolver     foodResolver
@@ -73,7 +64,6 @@ type Server struct {
 	users        userStore
 	foods        foodStore
 	logs         logStore
-	weights      weightStore
 	reviews      reviewStore
 	attempts     attemptStore
 	resolver     foodResolver
@@ -86,7 +76,6 @@ func New(d Deps) *Server {
 		users:        d.Users,
 		foods:        d.Foods,
 		logs:         d.Logs,
-		weights:      d.Weights,
 		reviews:      d.Reviews,
 		attempts:     d.Attempts,
 		resolver:     d.Resolver,
@@ -118,16 +107,11 @@ func (s *Server) Router(production bool) *gin.Engine {
 		v1.GET("/foods/:id", s.getFood)
 		v1.GET("/barcode/:code", s.getByBarcode)
 		v1.POST("/foods/personal", s.createPersonalFood)
-		v1.GET("/recents", s.getRecents)
 
-		v1.GET("/days/:date", s.getDay)
+		v1.GET("/entries", s.listEntries)
 		v1.POST("/entries", s.addEntry)
 		v1.PATCH("/entries/:id", s.updateEntry)
 		v1.DELETE("/entries/:id", s.deleteEntry)
-		v1.POST("/days/:date/repeat", s.repeatDay)
-
-		v1.POST("/weights", s.addWeight)
-		v1.GET("/weights/trend", s.getWeightTrend)
 	}
 
 	// Onboarding creates the user, so it authenticates the caller without
