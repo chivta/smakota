@@ -17,7 +17,6 @@ import (
 	"github.com/arvlas/calbot/internal/ingest/zakaz"
 	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
-	"github.com/arvlas/calbot/internal/telegram"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/option"
@@ -144,23 +143,6 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 		return nil
 	}
 	return err
-}
-
-func runBot(ctx context.Context, cfg config.Config) error {
-	bot, err := telegram.New(telegram.Options{
-		Token:        cfg.BotToken,
-		APIURL:       cfg.TelegramAPIURL,
-		APIBaseURL:   cfg.PublicURL,
-		ServiceToken: cfg.ServiceToken,
-		AllowedUsers: cfg.AllowedUsers,
-	})
-	if err != nil {
-		return err
-	}
-
-	log.Info().Msg("bot polling")
-	bot.Start(ctx)
-	return nil
 }
 
 func runIngest(ctx context.Context, cfg config.Config, name string) error {

@@ -31,14 +31,6 @@ services:
       redis:
         condition: service_healthy
 
-  # Long polling allows one consumer per token, so this stays at one replica.
-  bot:
-    <<: *calbot
-    command: ["bot"]
-    depends_on:
-      api:
-        condition: service_healthy
-
   scheduler:
     <<: *calbot
     command: ["scheduler"]

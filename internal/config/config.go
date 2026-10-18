@@ -44,10 +44,6 @@ type Config struct {
 // IsProduction gates cookie flags and error verbosity.
 func (c Config) IsProduction() bool { return c.Env == "production" }
 
-// PublicBot reports whether the bot answers anyone. An empty allow list means
-// public, which is worth saying out loud at startup rather than discovering.
-func (c Config) PublicBot() bool { return len(c.AllowedUsers) == 0 }
-
 // Load reads .env if present, falls back to the OS environment, and validates.
 // It returns an error rather than exiting so main owns the exit.
 func Load() (Config, error) {

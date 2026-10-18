@@ -43,8 +43,6 @@ func run(ctx context.Context, cfg config.Config, args []string) error {
 	switch args[0] {
 	case "api":
 		return runAPI(ctx, cfg)
-	case "bot":
-		return runBot(ctx, cfg)
 	case "scheduler":
 		return runScheduler(ctx, cfg)
 	case "ingest":
@@ -64,5 +62,5 @@ func run(ctx context.Context, cfg config.Config, args []string) error {
 }
 
 func usage() error {
-	return fmt.Errorf("usage: calbot <api|bot|scheduler|ingest NAME|seed|migrate|health>")
+	return fmt.Errorf("usage: calbot <api|scheduler|ingest NAME|seed|migrate|health>")
 }

@@ -1,55 +1,59 @@
 # calbot
 
-Ukrainian calorie-logging bot. `prompt.md` is the PRD and the authority on scope;
-read it before adding anything it does not list.
+A food logging HTTP API with a Ukrainian-first food database. `prompt.md` is
+the PRD and the authority on scope; read it before adding anything it does not
+list.
 
-Backend is an HTTP API with no Telegram-specific logic. The bot and the Mini App
-are clients. Go, Postgres, Redis, telebot v4, Gin, zerolog, pgx, tern.
+There are no clients in this repo. A Telegram bot lived here until it was
+removed to let the API stabilise first; recover it from history if needed.
+Client-shaped work does not belong here.
+
+Go, Postgres, Redis, Gin, zerolog, pgx, tern.
 
 ## Rules this repo will not survive without
 
 **`license_class` is load-bearing.** Tier 2 sources (Сільпо, Zakaz.ua, Varus,
-producer and restaurant sites) forbid reproduction in their terms. Rows carrying
-`lookup_only` may be rendered to one user one at a time; they must never appear
-in a list endpoint, an export, or a dump. `domain.LicenseClass.Exportable()` is
-the gate. Any new bulk read path calls it.
+producer and restaurant sites) forbid reproduction in their terms. Rows
+carrying `lookup_only` may be rendered to one caller at a time; they must never
+appear in an export or a dump. `domain.LicenseClass.Exportable()` is the gate,
+and any new bulk read path calls it. Whether a paginated search counts as bulk
+is an open decision, recorded in `.claude/api-redesign.html`
 
 **Adapters never write to `foods`.** The pipeline is Fetch → Normalize →
 Validate → Stage → Promote. Adapters stop at `staging_items`. Promote is the
 only writer of catalogue rows, and it refuses to lower an entry's confidence:
 hand-verified beats reference tables beats open databases beats scraped.
 
+**Each adapter declares its own provenance.** `Adapter.Provenance()` returns the
+licence class and confidence for its rows. A new source is a new package, never
+an edit to a switch in the shared normalizer.
+
 **Nutrition is snapshotted into `log_entries` at save time.** A later catalogue
-correction must not rewrite a day the user already logged.
+correction must not rewrite a day already logged.
 
-**Every entry is per 100 g.** Adapters convert kJ, comma decimals and ranges
-before staging, or reject the row with a reason.
-
-**Postgres, not SQLite.** The `telegram-bot` skill mandates SQLite and names its
-own exception: concurrent writers. The API, the scheduler and the ingest workers
-all write here, so the exception applies.
+**Every catalogue entry is per 100 g.** Adapters convert kJ, comma decimals and
+ranges before staging, or reject the row with a reason.
 
 ## Source research
 
 `.claude/nutrition-sources/` holds the verified source catalogue. `sources.json`
-has per-source access notes including the API quirks (Сільпо needs the numeric
-`externalProductId`; Varus's real sitemap is not the one in robots.txt).
-`deadends.json` lists ~50 sources already rejected with reasons. Read it before
-writing any new adapter.
+has per-source access notes including the API quirks (Сільпо filters products by
+category *slug*, not by the UUID id; Varus's real sitemap is not the one in
+robots.txt). `deadends.json` lists ~50 sources already rejected with reasons.
+Read it before writing any new adapter.
 
-`research/products.txt` is the user's real diary, ordered by frequency. It is the
-seeding priority list.
+`research/products.txt` is a real diary, ordered by frequency, and the seeding
+priority list.
 
 ## Layout
 
-    cmd/calbot          subcommands: api, bot, scheduler, ingest <name>, seed, migrate, health
+    cmd/calbot          subcommands: api, scheduler, ingest <name>, seed, migrate, health
     internal/domain     entities, sentinel errors, the confidence ladder
     internal/config     every setting, validated at startup
     internal/storage    pgxpool, per-entity repos, embedded migrations
-    internal/resolver   text parsing, candidate ranking
+    internal/resolver   query normalization, quantity parsing, candidate ranking
     internal/ingest     pipeline framework and one package per source
-    internal/api        Gin handlers
-    internal/telegram   telebot client
+    internal/api        Gin handlers and the OpenAPI spec served at /docs
     internal/seed       the curated catalogue, embedded in the binary
 
 ## Two seams worth knowing
@@ -66,7 +70,9 @@ only place that bridges them.
 ## Conventions
 
 Go style, error handling, wiring and logging follow the `golang-conventions`
-skill. Telegram specifics follow `telegram-bot`. Neither is restated here.
+skill, which is not restated here.
 
-User-facing Ukrainian strings live in one translation map keyed by error code.
-Handlers and components contain no hard-coded text.
+Errors carry a machine-readable code. Callers map codes to their own text.
+
+The OpenAPI spec is hand-written and lives beside the handlers. Nothing
+generates it, so changing a handler means changing the spec in the same commit.
