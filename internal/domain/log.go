@@ -12,7 +12,8 @@ type LogEntry struct {
 	Grams     float64   `json:"grams"`
 	Nutrition Nutrition `json:"nutrition"`
 	LoggedAt  time.Time `json:"logged_at"`
-	Day       time.Time `json:"day"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // InputType records how an entry reached the resolver.

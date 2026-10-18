@@ -36,16 +36,26 @@ func pathInt(c *gin.Context, name string) (int64, error) {
 	return v, nil
 }
 
-// queryDate reads an optional ISO date query parameter.
-func queryDate(c *gin.Context, name string, fallback time.Time) (time.Time, error) {
+// queryTime reads an optional time query parameter: a full RFC3339 timestamp,
+// or a bare ISO date meaning that UTC day. For a bare date, end selects the
+// day's last instant instead of its midnight.
+func queryTime(c *gin.Context, name string, fallback time.Time, end bool) (time.Time, error) {
 	raw := c.Query(name)
 	if raw == "" {
 		return fallback, nil
 	}
 
+	t, err := time.Parse(time.RFC3339, raw)
+	if err == nil {
+		return t, nil
+	}
+
 	day, err := time.Parse(time.DateOnly, raw)
 	if err != nil {
 		return time.Time{}, domain.ErrInvalidInput
+	}
+	if end {
+		return endOfDay(day), nil
 	}
 	return day, nil
 }
@@ -66,6 +76,12 @@ func queryInt(c *gin.Context, name string, fallback, lo, hi int) (int, error) {
 
 func truncateDay(t time.Time) time.Time {
 	return time.Date(t.Year(), t.Month(), t.Day(), 0, 0, 0, 0, t.Location())
+}
+
+// endOfDay is the last instant Postgres can distinguish within the day, which
+// makes a between-range on timestamptz inclusive of the whole day.
+func endOfDay(day time.Time) time.Time {
+	return truncateDay(day).AddDate(0, 0, 1).Add(-time.Microsecond)
 }
 
 func defaultString(v, fallback string) string {

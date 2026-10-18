@@ -60,8 +60,7 @@ do update set name = excluded.name,
               protein_100g = excluded.protein_100g,
               fat_100g = excluded.fat_100g,
               carbs_100g = excluded.carbs_100g,
-              confidence = excluded.confidence,
-              updated_at = now()
+              confidence = excluded.confidence
 returning id`
 
 // upsertFood keys the curated entry by its name, which is stable across runs

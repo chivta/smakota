@@ -24,13 +24,12 @@ func (r *LogRepo) Add(ctx context.Context, e domain.LogEntry) (domain.LogEntry, 
 	err := r.pool.QueryRow(ctx, `
 		insert into log_entries (
 			user_id, food_id, food_name, grams, kcal, protein, fat, carbs,
-			logged_at, day
-		) values ($1, nullif($2, 0), $3, $4, $5, $6, $7, $8, $9, $10)
-		returning id, logged_at`,
+			logged_at
+		) values ($1, nullif($2, 0), $3, $4, $5, $6, $7, $8, $9)
+		returning id, logged_at, created_at, updated_at`,
 		e.UserID, e.FoodID, e.FoodName, e.Grams, e.Nutrition.Kcal,
 		e.Nutrition.Protein, e.Nutrition.Fat, e.Nutrition.Carbs, e.LoggedAt,
-		dayString(e.Day),
-	).Scan(&e.ID, &e.LoggedAt)
+	).Scan(&e.ID, &e.LoggedAt, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		return domain.LogEntry{}, fmt.Errorf("add log entry: %w", err)
 	}
@@ -40,11 +39,11 @@ func (r *LogRepo) Add(ctx context.Context, e domain.LogEntry) (domain.LogEntry, 
 func (r *LogRepo) Range(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]domain.LogEntry, error) {
 	rows, err := r.pool.Query(ctx, `
 		select id, user_id, coalesce(food_id, 0), food_name, grams,
-			kcal, protein, fat, carbs, logged_at, day
+			kcal, protein, fat, carbs, logged_at, created_at, updated_at
 		from log_entries
-		where user_id = $1 and day between $2 and $3
+		where user_id = $1 and logged_at between $2 and $3
 		order by logged_at desc, id desc
-		limit $4 offset $5`, userID, dayString(from), dayString(to), limit, offset)
+		limit $4 offset $5`, userID, from, to, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("list log entries: %w", err)
 	}
@@ -134,7 +133,7 @@ func scanLogEntry(row pgx.Row) (domain.LogEntry, error) {
 	err := row.Scan(
 		&e.ID, &e.UserID, &e.FoodID, &e.FoodName, &e.Grams,
 		&e.Nutrition.Kcal, &e.Nutrition.Protein, &e.Nutrition.Fat,
-		&e.Nutrition.Carbs, &e.LoggedAt, &e.Day,
+		&e.Nutrition.Carbs, &e.LoggedAt, &e.CreatedAt, &e.UpdatedAt,
 	)
 	return e, err
 }
@@ -142,16 +141,11 @@ func scanLogEntry(row pgx.Row) (domain.LogEntry, error) {
 func logEntryLocked(ctx context.Context, tx pgx.Tx, userID, entryID int64) (bool, error) {
 	var locked bool
 	err := tx.QueryRow(ctx, `
-		select le.day < (now() at time zone u.timezone)::date - $3::int
+		select le.logged_at < now() - make_interval(days => $3::int)
 		from log_entries le
-		join users u on u.id = le.user_id
 		where le.user_id = $1 and le.id = $2
 		for update of le`,
 		userID, entryID, int(domain.DayEditWindow/(24*time.Hour)),
 	).Scan(&locked)
 	return locked, err
-}
-
-func dayString(day time.Time) string {
-	return day.Format(time.DateOnly)
 }

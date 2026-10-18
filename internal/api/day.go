@@ -62,7 +62,6 @@ func (s *Server) addEntry(c *gin.Context) {
 		Grams:     grams,
 		Nutrition: food.Scale(grams),
 		LoggedAt:  at,
-		Day:       truncateDay(at),
 	}
 
 	saved, err := s.logs.Add(c.Request.Context(), entry)
@@ -110,13 +109,13 @@ func (s *Server) listEntries(c *gin.Context) {
 		return
 	}
 
-	today := truncateDay(time.Now())
-	from, err := queryDate(c, "from", today)
+	today := truncateDay(time.Now().UTC())
+	from, err := queryTime(c, "from", today, false)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
-	to, err := queryDate(c, "to", today)
+	to, err := queryTime(c, "to", endOfDay(today), true)
 	if err != nil {
 		RespondWithError(c, err)
 		return

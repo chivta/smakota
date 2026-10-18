@@ -172,7 +172,8 @@ components:
         grams: { type: number }
         nutrition: { $ref: '#/components/schemas/Nutrition' }
         logged_at: { type: string, format: date-time }
-        day: { type: string, format: date }
+        created_at: { type: string, format: date-time }
+        updated_at: { type: string, format: date-time }
 
     User:
       type: object
@@ -403,17 +404,21 @@ paths:
       summary: List logged entries
       operationId: listEntries
       description: |
-        A flat array ordered by `logged_at` descending. No totals or targets are
+        A flat array ordered by `logged_at` descending, filtered on `logged_at`. No totals or targets are
         computed; callers sum what they need.
       parameters:
         - name: from
           in: query
-          description: First day, inclusive. Defaults to today.
-          schema: { type: string, format: date }
+          description: |
+            Start of the range, inclusive. A full RFC3339 timestamp, or a bare
+            date meaning that day's midnight in UTC. Defaults to today (UTC).
+          schema: { type: string }
         - name: to
           in: query
-          description: Last day, inclusive. Defaults to today.
-          schema: { type: string, format: date }
+          description: |
+            End of the range, inclusive. A full RFC3339 timestamp, or a bare
+            date meaning the end of that UTC day. Defaults to today (UTC).
+          schema: { type: string }
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 500, default: 100 }
@@ -450,7 +455,7 @@ paths:
                 grams: { type: number, maximum: 5000 }
                 portion_name: { type: string, example: "тарілка" }
                 portion_qty: { type: number, maximum: 50 }
-                logged_at: { type: string, format: date-time }
+                logged_at: { type: string, format: date-time, description: When the food was eaten. Defaults to now. }
       responses:
         "201":
           description: Created

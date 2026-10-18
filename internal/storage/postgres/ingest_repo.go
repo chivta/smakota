@@ -264,8 +264,7 @@ func (r *IngestRepo) Promote(ctx context.Context, item StagedItem) (PromoteResul
 			confidence = excluded.confidence,
 			owner_user_id = excluded.owner_user_id,
 			content_hash = excluded.content_hash,
-			fetched_at = excluded.fetched_at,
-			updated_at = now()
+			fetched_at = excluded.fetched_at
 		where foods.confidence <= excluded.confidence
 		returning id`,
 		f.Kind, f.Name, f.Brand, f.Barcode, f.State, f.Nutrition.Kcal,

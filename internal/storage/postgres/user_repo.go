@@ -79,8 +79,7 @@ func (r *UserRepo) Update(ctx context.Context, u domain.User) error {
 			nudge_at = $12::time,
 			nudge_enabled = $13,
 			weekly_summary_enabled = $14,
-			onboarded_at = $15,
-			updated_at = now()
+			onboarded_at = $15
 		where id = $1
 		returning id`,
 		u.ID, u.TelegramID, u.Sex, u.Age, u.HeightCM, u.WeightKG,
@@ -114,7 +113,8 @@ func (r *UserRepo) ListDueForNudge(ctx context.Context, now time.Time) ([]domain
 			and scheduled.due_at <= local_time.local_now
 			and not exists (
 				select 1 from log_entries le
-				where le.user_id = u.id and le.day = local_time.local_now::date
+				where le.user_id = u.id and le.logged_at >= local_time.local_now::date at time zone u.timezone
+					and le.logged_at < (local_time.local_now::date + 1) at time zone u.timezone
 			)
 		order by u.id`, now)
 	if err != nil {
