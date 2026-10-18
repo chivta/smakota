@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/arvlas/calbot/internal/metrics"
 )
 
 const (
@@ -61,9 +63,14 @@ type Result struct {
 	Confidence ConfidenceBand `json:"confidence"`
 }
 
-// Resolver coordinates catalogue search and the semantic fallback. Recording
-// the attempt and queueing review items belong to the caller, which is the only
-// layer that knows whether the user went on to accept the result.
+// Outcome labels of metrics.ResolverAttempts.
+const (
+	outcomeHit   = "hit"
+	outcomeEmpty = "empty"
+)
+
+// Resolver coordinates catalogue search and the semantic fallback. It has no
+// side effects beyond metrics.
 type Resolver struct {
 	search foodSearch
 	llm    *LLM
@@ -73,8 +80,26 @@ func NewResolver(search foodSearch, llm *LLM) *Resolver {
 	return &Resolver{search: search, llm: llm}
 }
 
-// Resolve turns one free-form phrase into a ranked candidate list.
+// Resolve turns one free-form phrase into a ranked candidate list, and records
+// its outcome and latency.
 func (r *Resolver) Resolve(ctx context.Context, req Request) (Result, error) {
+	started := time.Now()
+	result, err := r.resolve(ctx, req)
+	if err != nil {
+		return Result{}, err
+	}
+
+	outcome := outcomeHit
+	if len(result.Candidates) == 0 {
+		outcome = outcomeEmpty
+	}
+	input := string(req.InputType)
+	metrics.ResolverAttempts.WithLabelValues(input, outcome).Inc()
+	metrics.ResolverLatency.WithLabelValues(input).Observe(time.Since(started).Seconds())
+	return result, nil
+}
+
+func (r *Resolver) resolve(ctx context.Context, req Request) (Result, error) {
 	quantity, phrase := ParseQuantity(req.RawInput)
 	query := Normalize(phrase)
 	if req.Clarification != "" {

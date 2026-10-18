@@ -400,10 +400,3 @@ func nullableJSON(payload []byte) []byte {
 	}
 	return encoded
 }
-
-func nullableTime(value time.Time) *time.Time {
-	if value.IsZero() {
-		return nil
-	}
-	return &value
-}

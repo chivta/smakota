@@ -11,6 +11,7 @@ import (
 	"fmt"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/arvlas/calbot/internal/metrics"
 )
 
 // Adapter fetches source rows. It does not have access to catalogue storage.
@@ -71,6 +72,18 @@ type StagedItem struct {
 	Payload     []byte
 	Normalized  domain.Food
 	RunID       *int64
+}
+
+// Pipeline stages, as the stage label of metrics.IngestRows.
+const (
+	stageFetched  = "fetched"
+	stageStaged   = "staged"
+	stageRejected = "rejected"
+	stagePromoted = "promoted"
+)
+
+func countRows(source, stage string, n int) {
+	metrics.IngestRows.WithLabelValues(source, stage).Add(float64(n))
 }
 
 // Counts are persisted on the ingest run when it finishes.
@@ -153,6 +166,7 @@ func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *
 			return r.store.SetCursor(ctx, source, raw.Cursor)
 		}
 		counts.Fetched++
+		countRows(source, stageFetched, 1)
 		normalized, normalizeErr := Normalize(source, adapter.Provenance(), raw)
 		if normalizeErr != nil {
 			return r.reject(ctx, runID, source, raw, normalizeErr, counts)
@@ -172,6 +186,7 @@ func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *
 			return fmt.Errorf("stage %s product %s: %w", source, raw.ExternalID, stageErr)
 		}
 		counts.Staged += staged
+		countRows(source, stageStaged, staged)
 		if raw.Cursor != "" {
 			setErr := r.store.SetCursor(ctx, source, raw.Cursor)
 			if setErr != nil {
@@ -213,6 +228,7 @@ func (r *Runner) promotePending(ctx context.Context, source string, counts *Coun
 			}
 			if result.Promoted {
 				counts.Promoted++
+				countRows(source, stagePromoted, 1)
 				continue
 			}
 			if !result.Conflict {
@@ -231,6 +247,7 @@ func (r *Runner) reject(ctx context.Context, runID int64, source string, raw Raw
 		return fmt.Errorf("reject %s product %s: %w", source, raw.ExternalID, err)
 	}
 	counts.Rejected++
+	countRows(source, stageRejected, 1)
 	return nil
 }
 

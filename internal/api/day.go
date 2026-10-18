@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"math"
 	"net/http"
 	"time"
@@ -14,16 +15,27 @@ const (
 	maxEntriesLimit     = 500
 )
 
-type addEntryRequest struct {
-	FoodID      int64      `json:"food_id"      validate:"required,gt=0"`
-	Grams       float64    `json:"grams"        validate:"omitempty,gt=0,lte=5000"`
-	PortionName string     `json:"portion_name"`
-	PortionQty  float64    `json:"portion_qty"  validate:"omitempty,gt=0,lte=50"`
-	LoggedAt    *time.Time `json:"logged_at"`
+type inlineNutrition struct {
+	Kcal    *float64 `json:"kcal"    validate:"required,gte=0,lte=20000"`
+	Protein float64  `json:"protein" validate:"gte=0,lte=5000"`
+	Fat     float64  `json:"fat"     validate:"gte=0,lte=5000"`
+	Carbs   float64  `json:"carbs"   validate:"gte=0,lte=5000"`
 }
 
-// addEntry accepts either grams or a count of a named portion, and snapshots
-// the nutrition so a later catalogue correction cannot rewrite this day.
+type addEntryRequest struct {
+	FoodID      *int64           `json:"food_id"      validate:"omitempty,gt=0"`
+	Name        string           `json:"name"         validate:"max=200"`
+	Nutrition   *inlineNutrition `json:"nutrition"`
+	Grams       float64          `json:"grams"        validate:"omitempty,gt=0,lte=5000"`
+	PortionName string           `json:"portion_name"`
+	PortionQty  float64          `json:"portion_qty"  validate:"omitempty,gt=0,lte=50"`
+	LoggedAt    *time.Time       `json:"logged_at"`
+}
+
+// addEntry logs either a catalogue food, by id, or an inline one, by name and
+// nutrition. Logging never requires a catalogue lookup. Either way the
+// nutrition is snapshotted, so a later catalogue correction cannot rewrite this
+// day.
 func (s *Server) addEntry(c *gin.Context) {
 	userID, err := currentUser(c)
 	if err != nil {
@@ -38,30 +50,24 @@ func (s *Server) addEntry(c *gin.Context) {
 		return
 	}
 
-	food, err := s.foods.GetByID(c.Request.Context(), req.FoodID)
+	var entry domain.LogEntry
+	switch {
+	case req.FoodID != nil && req.Name == "" && req.Nutrition == nil:
+		entry, err = s.catalogueEntry(c.Request.Context(), *req.FoodID, req)
+	case req.FoodID == nil && req.Name != "":
+		entry, err = inlineEntry(req)
+	default:
+		err = domain.ErrInvalidInput
+	}
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	grams, err := resolveGrams(food, req)
-	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	at := time.Now()
+	entry.UserID = userID
+	entry.LoggedAt = time.Now()
 	if req.LoggedAt != nil {
-		at = *req.LoggedAt
-	}
-
-	entry := domain.LogEntry{
-		UserID:    userID,
-		FoodID:    food.ID,
-		FoodName:  food.Name,
-		Grams:     grams,
-		Nutrition: food.Scale(grams),
-		LoggedAt:  at,
+		entry.LoggedAt = *req.LoggedAt
 	}
 
 	saved, err := s.logs.Add(c.Request.Context(), entry)
@@ -71,6 +77,44 @@ func (s *Server) addEntry(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusCreated, saved)
+}
+
+func (s *Server) catalogueEntry(ctx context.Context, foodID int64, req addEntryRequest) (domain.LogEntry, error) {
+	food, err := s.foods.GetByID(ctx, foodID)
+	if err != nil {
+		return domain.LogEntry{}, err
+	}
+
+	grams, err := resolveGrams(food, req)
+	if err != nil {
+		return domain.LogEntry{}, err
+	}
+
+	return domain.LogEntry{
+		FoodID:    &food.ID,
+		FoodName:  food.Name,
+		Grams:     grams,
+		Nutrition: food.Scale(grams),
+	}, nil
+}
+
+// inlineEntry takes the nutrition as absolute values for the given grams, the
+// same shape the catalogue path snapshots.
+func inlineEntry(req addEntryRequest) (domain.LogEntry, error) {
+	if req.Grams <= 0 || req.Nutrition == nil || req.Nutrition.Kcal == nil {
+		return domain.LogEntry{}, domain.ErrInvalidInput
+	}
+
+	return domain.LogEntry{
+		FoodName: req.Name,
+		Grams:    req.Grams,
+		Nutrition: domain.Nutrition{
+			Kcal:    *req.Nutrition.Kcal,
+			Protein: req.Nutrition.Protein,
+			Fat:     req.Nutrition.Fat,
+			Carbs:   req.Nutrition.Carbs,
+		},
+	}, nil
 }
 
 // resolveGrams turns whichever amount the client sent into grams. A named

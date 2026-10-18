@@ -127,8 +127,7 @@ type resolveRequest struct {
 }
 
 // resolve runs one pass of the shared pipeline every input mode converges on.
-// It records the attempt for the acceptance metrics, and queues a review item
-// when nothing clears the floor.
+// It has no side effects, and a miss is an empty candidate list.
 func (s *Server) resolve(c *gin.Context) {
 	userID, err := currentUser(c)
 	if err != nil {
@@ -143,7 +142,6 @@ func (s *Server) resolve(c *gin.Context) {
 		return
 	}
 
-	started := time.Now()
 	result, err := s.resolver.Resolve(c.Request.Context(), resolver.Request{
 		RawInput:      req.Input,
 		InputType:     req.InputType,
@@ -152,27 +150,6 @@ func (s *Server) resolve(c *gin.Context) {
 	})
 	if err != nil {
 		RespondWithError(c, err)
-		return
-	}
-
-	attempt := domain.Attempt{
-		UserID:         userID,
-		InputType:      req.InputType,
-		LatencyMS:      int(time.Since(started).Milliseconds()),
-		RefinementUsed: req.Clarification != "",
-		Resolved:       len(result.Candidates) > 0,
-	}
-	logSoftError(s.attempts.Add(c.Request.Context(), attempt), "record attempt")
-
-	if len(result.Candidates) == 0 {
-		item := domain.ReviewItem{
-			UserID:    &userID,
-			RawInput:  req.Input,
-			InputType: req.InputType,
-			Reason:    domain.ReviewUnresolved,
-		}
-		logSoftError(s.reviews.Add(c.Request.Context(), item), "queue review item")
-		RespondWithError(c, domain.ErrUnresolved)
 		return
 	}
 
@@ -195,25 +172,10 @@ func (s *Server) getFood(c *gin.Context) {
 	c.JSON(http.StatusOK, food)
 }
 
-// getByBarcode is the Mini App scanner's lookup. A miss queues a review item so
-// the barcode reaches the expansion list even if the user gives up.
+// getByBarcode is the Mini App scanner's lookup. A miss is a plain 404.
 func (s *Server) getByBarcode(c *gin.Context) {
-	userID, err := currentUser(c)
+	food, err := s.foods.GetByBarcode(c.Request.Context(), c.Param("code"))
 	if err != nil {
-		RespondWithError(c, err)
-		return
-	}
-
-	code := c.Param("code")
-	food, err := s.foods.GetByBarcode(c.Request.Context(), code)
-	if err != nil {
-		item := domain.ReviewItem{
-			UserID:    &userID,
-			RawInput:  code,
-			InputType: domain.InputBarcode,
-			Reason:    domain.ReviewBarcodeMiss,
-		}
-		logSoftError(s.reviews.Add(c.Request.Context(), item), "queue barcode miss")
 		RespondWithError(c, err)
 		return
 	}

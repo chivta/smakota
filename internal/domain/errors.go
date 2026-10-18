@@ -28,7 +28,4 @@ var (
 
 	// ErrDayLocked is returned for edits to days older than the editable window.
 	ErrDayLocked = &AppError{Status: 409, Code: "DAY_LOCKED"}
-
-	// ErrUnresolved means the resolver produced no candidate above the floor.
-	ErrUnresolved = &AppError{Status: 422, Code: "UNRESOLVED"}
 )

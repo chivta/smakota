@@ -8,7 +8,7 @@ There are no clients in this repo. A Telegram bot lived here until it was
 removed to let the API stabilise first; recover it from history if needed.
 Client-shaped work does not belong here.
 
-Go, Postgres, Redis, Gin, zerolog, pgx, tern.
+Go, Postgres, Gin, zerolog, pgx, tern.
 
 ## Rules this repo will not survive without
 

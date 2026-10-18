@@ -28,16 +28,12 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-      redis:
-        condition: service_healthy
 
   scheduler:
     <<: *calbot
     command: ["scheduler"]
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   postgres:
@@ -64,23 +60,6 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
-
-  redis:
-    image: redis:8-alpine
-    user: redis
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
-    cap_drop:
-      - ALL
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   caddy:
     image: caddy:2-alpine
@@ -116,6 +95,5 @@ services:
 
 volumes:
   postgres_data:
-  redis_data:
   caddy_data:
   caddy_config:

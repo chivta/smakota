@@ -7,7 +7,7 @@ import "time"
 type LogEntry struct {
 	ID        int64     `json:"id"`
 	UserID    int64     `json:"-"`
-	FoodID    int64     `json:"food_id"`
+	FoodID    *int64    `json:"food_id"` // null for an inline entry
 	FoodName  string    `json:"food_name"`
 	Grams     float64   `json:"grams"`
 	Nutrition Nutrition `json:"nutrition"`

@@ -25,7 +25,7 @@ func (r *LogRepo) Add(ctx context.Context, e domain.LogEntry) (domain.LogEntry, 
 		insert into log_entries (
 			user_id, food_id, food_name, grams, kcal, protein, fat, carbs,
 			logged_at
-		) values ($1, nullif($2, 0), $3, $4, $5, $6, $7, $8, $9)
+		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		returning id, logged_at, created_at, updated_at`,
 		e.UserID, e.FoodID, e.FoodName, e.Grams, e.Nutrition.Kcal,
 		e.Nutrition.Protein, e.Nutrition.Fat, e.Nutrition.Carbs, e.LoggedAt,
@@ -38,7 +38,7 @@ func (r *LogRepo) Add(ctx context.Context, e domain.LogEntry) (domain.LogEntry, 
 
 func (r *LogRepo) Range(ctx context.Context, userID int64, from, to time.Time, limit, offset int) ([]domain.LogEntry, error) {
 	rows, err := r.pool.Query(ctx, `
-		select id, user_id, coalesce(food_id, 0), food_name, grams,
+		select id, user_id, food_id, food_name, grams,
 			kcal, protein, fat, carbs, logged_at, created_at, updated_at
 		from log_entries
 		where user_id = $1 and logged_at between $2 and $3

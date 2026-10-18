@@ -7,7 +7,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/arvlas/calbot/internal/metrics"
 	"github.com/rs/zerolog/log"
 )
 
@@ -97,6 +96,5 @@ func (s *Scheduler) runOne(ctx context.Context, job Job) {
 		return
 	}
 
-	metrics.IngestAge.WithLabelValues(job.Name).Set(0)
 	log.Info().Str("job", job.Name).Dur("elapsed", elapsed).Msg("job finished")
 }

@@ -19,13 +19,6 @@ func Weekly(day time.Weekday, hour, minute int) func(time.Time) bool {
 	}
 }
 
-// Monthly fires on the given day of the month.
-func Monthly(dayOfMonth, hour, minute int) func(time.Time) bool {
-	return func(t time.Time) bool {
-		return t.Day() == dayOfMonth && t.Hour() == hour && t.Minute() == minute
-	}
-}
-
 // Never keeps a job registered but idle. The quarterly reference refresh uses
 // it, so it exists as a named manual run rather than a surprise crawl.
 func Never() func(time.Time) bool {

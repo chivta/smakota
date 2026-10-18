@@ -15,6 +15,7 @@ import (
 	"github.com/arvlas/calbot/internal/ingest/silpo"
 	"github.com/arvlas/calbot/internal/ingest/usda"
 	"github.com/arvlas/calbot/internal/ingest/zakaz"
+	"github.com/arvlas/calbot/internal/metrics"
 	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -25,6 +26,9 @@ import (
 
 // ingestAllName is the `ingest` argument and manual job that run every adapter.
 const ingestAllName = "all"
+
+// ingestAgeRefresh is how often the freshness gauge is recomputed.
+const ingestAgeRefresh = time.Minute
 
 // shutdownGrace is how long in-flight requests get to finish after a signal.
 const shutdownGrace = 15 * time.Second
@@ -38,7 +42,6 @@ type container struct {
 	foods    *postgres.FoodRepo
 	logs     *postgres.LogRepo
 	reviews  *postgres.ReviewRepo
-	attempts *postgres.AttemptRepo
 	ingests  *postgres.IngestRepo
 	locker   *postgres.Locker
 	registry *ingest.Registry
@@ -81,7 +84,6 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		foods:    foods,
 		logs:     postgres.NewLogRepo(pool),
 		reviews:  postgres.NewReviewRepo(pool),
-		attempts: postgres.NewAttemptRepo(pool),
 		ingests:  ingests,
 		locker:   postgres.NewLocker(pool),
 		registry: registry,
@@ -110,12 +112,12 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 		Foods:        c.foods,
 		Logs:         c.logs,
 		Reviews:      c.reviews,
-		Attempts:     c.attempts,
 		Resolver:     c.resolver,
 		BotToken:     cfg.BotToken,
 		ServiceToken: cfg.ServiceToken,
-		Production:   cfg.IsProduction(),
 	})
+
+	go c.trackIngestAge(ctx)
 
 	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
@@ -140,6 +142,34 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 		return nil
 	}
 	return err
+}
+
+// trackIngestAge keeps metrics.IngestAge at the real seconds since each source
+// last succeeded. It runs in the api process because that is the one serving
+// /metrics. A source that never succeeded has no sample.
+func (c *container) trackIngestAge(ctx context.Context) {
+	ticker := time.NewTicker(ingestAgeRefresh)
+	defer ticker.Stop()
+
+	for {
+		for _, adapter := range c.registry.Adapters() {
+			source := adapter.Name()
+			finishedAt, ok, err := c.ingests.LastSuccess(ctx, source)
+			if err != nil {
+				log.Error().Err(err).Str("source", source).Msg("read last ingest success")
+				continue
+			}
+			if ok {
+				metrics.IngestAge.WithLabelValues(source).Set(time.Since(finishedAt).Seconds())
+			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
 }
 
 func runIngest(ctx context.Context, cfg config.Config, name string) error {

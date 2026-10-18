@@ -98,8 +98,8 @@ func applyIf[T any](src *T, dst *T) {
 	}
 }
 
-// logSoftError records a failure that must not fail the request: the attempt
-// log and the review queue are observability, not the user's business.
+// logSoftError records a failure that must not fail the request: the review
+// queue is observability, not the user's business.
 func logSoftError(err error, what string) {
 	if err != nil {
 		log.Error().Err(err).Msg(what)

@@ -25,7 +25,6 @@ type foodStore interface {
 	GetByID(ctx context.Context, id int64) (domain.Food, error)
 	GetByBarcode(ctx context.Context, barcode string) (domain.Food, error)
 	CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error)
-	LastAmount(ctx context.Context, userID, foodID int64) (float64, bool, error)
 }
 
 type logStore interface {
@@ -39,10 +38,6 @@ type reviewStore interface {
 	Add(ctx context.Context, item domain.ReviewItem) error
 }
 
-type attemptStore interface {
-	Add(ctx context.Context, a domain.Attempt) error
-}
-
 type foodResolver interface {
 	Resolve(ctx context.Context, req resolver.Request) (resolver.Result, error)
 }
@@ -53,11 +48,9 @@ type Deps struct {
 	Foods        foodStore
 	Logs         logStore
 	Reviews      reviewStore
-	Attempts     attemptStore
 	Resolver     foodResolver
 	BotToken     string
 	ServiceToken string
-	Production   bool
 }
 
 type Server struct {
@@ -65,7 +58,6 @@ type Server struct {
 	foods        foodStore
 	logs         logStore
 	reviews      reviewStore
-	attempts     attemptStore
 	resolver     foodResolver
 	botToken     string
 	serviceToken string
@@ -77,7 +69,6 @@ func New(d Deps) *Server {
 		foods:        d.Foods,
 		logs:         d.Logs,
 		reviews:      d.Reviews,
-		attempts:     d.Attempts,
 		resolver:     d.Resolver,
 		botToken:     d.BotToken,
 		serviceToken: d.ServiceToken,

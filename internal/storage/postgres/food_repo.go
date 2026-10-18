@@ -219,22 +219,6 @@ func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Fo
 	return f, nil
 }
 
-func (r *FoodRepo) LastAmount(ctx context.Context, userID, foodID int64) (float64, bool, error) {
-	var grams float64
-	err := r.pool.QueryRow(ctx, `
-		select grams from log_entries
-		where user_id = $1 and food_id = $2
-		order by logged_at desc, id desc
-		limit 1`, userID, foodID).Scan(&grams)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, false, nil
-	}
-	if err != nil {
-		return 0, false, fmt.Errorf("get last food amount: %w", err)
-	}
-	return grams, true, nil
-}
-
 func (r *FoodRepo) loadPortions(ctx context.Context, f *domain.Food) error {
 	rows, err := r.pool.Query(ctx, `
 		select id, food_id, name, grams, is_default
