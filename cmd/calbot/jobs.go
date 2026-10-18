@@ -12,8 +12,7 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// Per-source run budgets. The OFF full dump is the long pole; the notifier is a
-// sweep over due users and should never take minutes.
+// Per-source run budgets. The OFF full dump is the long pole.
 const (
 	crawlTimeout    = 2 * time.Hour
 	dumpTimeout     = 6 * time.Hour
@@ -75,12 +74,6 @@ func (c *container) jobs() []scheduler.Job {
 			Timeout: quickJobTimeout,
 			Run:     c.reviewDigest,
 		},
-		{
-			Name:    "notifier",
-			Due:     scheduler.EveryMinutes(10),
-			Timeout: quickJobTimeout,
-			Run:     c.notify,
-		},
 	}
 }
 
@@ -93,26 +86,6 @@ func (c *container) reviewDigest(ctx context.Context) error {
 	}
 
 	log.Info().Int("open", len(items)).Msg("review queue digest")
-	return nil
-}
-
-// notify sends the evening nudge to users whose set time has come and who have
-// logged nothing today, plus the weekly summary. Both are individually
-// disableable, and nothing else is ever sent.
-func (c *container) notify(ctx context.Context) error {
-	now := time.Now()
-
-	due, err := c.users.ListDueForNudge(ctx, now)
-	if err != nil {
-		return fmt.Errorf("list users due for a nudge: %w", err)
-	}
-
-	weekly, err := c.users.ListDueForWeeklySummary(ctx, now)
-	if err != nil {
-		return fmt.Errorf("list users due for the weekly summary: %w", err)
-	}
-
-	log.Info().Int("nudges", len(due)).Int("summaries", len(weekly)).Msg("notifications due")
 	return nil
 }
 

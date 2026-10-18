@@ -48,21 +48,18 @@ const ProteinPerKg = 1.8
 const DeficitRatio = 0.8
 
 type User struct {
-	ID                   int64         `json:"id"`
-	TelegramID           int64         `json:"-"`
-	Sex                  Sex           `json:"sex"`
-	Age                  int           `json:"age"`
-	HeightCM             int           `json:"height_cm"`
-	WeightKG             float64       `json:"weight_kg"`
-	GoalWeightKG         float64       `json:"goal_weight_kg"`
-	ActivityLevel        ActivityLevel `json:"activity_level"`
-	KcalTarget           int           `json:"kcal_target"`
-	ProteinTargetG       int           `json:"protein_target_g"`
-	Timezone             string        `json:"timezone"`
-	NudgeAt              string        `json:"nudge_at"`
-	NudgeEnabled         bool          `json:"nudge_enabled"`
-	WeeklySummaryEnabled bool          `json:"weekly_summary_enabled"`
-	OnboardedAt          *time.Time    `json:"-"`
+	ID             int64         `json:"id"`
+	TelegramID     int64         `json:"-"`
+	Sex            Sex           `json:"sex"`
+	Age            int           `json:"age"`
+	HeightCM       int           `json:"height_cm"`
+	WeightKG       float64       `json:"weight_kg"`
+	GoalWeightKG   float64       `json:"goal_weight_kg"`
+	ActivityLevel  ActivityLevel `json:"activity_level"`
+	KcalTarget     int           `json:"kcal_target"`
+	ProteinTargetG int           `json:"protein_target_g"`
+	Timezone       string        `json:"timezone"`
+	OnboardedAt    *time.Time    `json:"-"`
 }
 
 // BMR is Mifflin-St Jeor.

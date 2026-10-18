@@ -26,14 +26,6 @@ func Monthly(dayOfMonth, hour, minute int) func(time.Time) bool {
 	}
 }
 
-// EveryMinutes fires whenever the minute of the hour divides evenly, which
-// gives the notifier its 10-minute sweep.
-func EveryMinutes(n int) func(time.Time) bool {
-	return func(t time.Time) bool {
-		return t.Minute()%n == 0
-	}
-}
-
 // Never keeps a job registered but idle. The quarterly reference refresh uses
 // it, so it exists as a named manual run rather than a surprise crawl.
 func Never() func(time.Time) bool {

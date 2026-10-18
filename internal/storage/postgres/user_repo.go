@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
 
@@ -17,8 +16,7 @@ const userColumns = `
 	coalesce(u.height_cm, 0), coalesce(u.weight_kg, 0),
 	coalesce(u.goal_weight_kg, 0), coalesce(u.activity_level, ''),
 	coalesce(u.kcal_target, 0), coalesce(u.protein_target_g, 0),
-	u.timezone, to_char(u.nudge_at, 'HH24:MI'), u.nudge_enabled,
-	u.weekly_summary_enabled, u.onboarded_at`
+	u.timezone, u.onboarded_at`
 
 type UserRepo struct {
 	pool *pgxpool.Pool
@@ -44,17 +42,17 @@ func (r *UserRepo) Create(ctx context.Context, u domain.User) (domain.User, erro
 	row := r.pool.QueryRow(ctx, `
 		insert into users as u (
 			telegram_id, sex, age, height_cm, weight_kg, goal_weight_kg,
-			activity_level, kcal_target, protein_target_g, timezone, nudge_at,
-			nudge_enabled, weekly_summary_enabled, onboarded_at
+			activity_level, kcal_target, protein_target_g, timezone,
+			onboarded_at
 		) values (
 			$1, nullif($2, ''), nullif($3, 0), nullif($4, 0), nullif($5, 0),
 			nullif($6, 0), nullif($7, ''), nullif($8, 0), nullif($9, 0),
-			$10, $11::time, $12, $13, $14
+			$10, $11
 		)
 		returning `+userColumns,
 		u.TelegramID, u.Sex, u.Age, u.HeightCM, u.WeightKG, u.GoalWeightKG,
-		u.ActivityLevel, u.KcalTarget, u.ProteinTargetG, u.Timezone, u.NudgeAt,
-		u.NudgeEnabled, u.WeeklySummaryEnabled, u.OnboardedAt,
+		u.ActivityLevel, u.KcalTarget, u.ProteinTargetG, u.Timezone,
+		u.OnboardedAt,
 	)
 	created, err := scanUser(row)
 	if err != nil {
@@ -76,16 +74,12 @@ func (r *UserRepo) Update(ctx context.Context, u domain.User) error {
 			kcal_target = nullif($9, 0),
 			protein_target_g = nullif($10, 0),
 			timezone = $11,
-			nudge_at = $12::time,
-			nudge_enabled = $13,
-			weekly_summary_enabled = $14,
-			onboarded_at = $15
+			onboarded_at = $12
 		where id = $1
 		returning id`,
 		u.ID, u.TelegramID, u.Sex, u.Age, u.HeightCM, u.WeightKG,
 		u.GoalWeightKG, u.ActivityLevel, u.KcalTarget, u.ProteinTargetG,
-		u.Timezone, u.NudgeAt, u.NudgeEnabled, u.WeeklySummaryEnabled,
-		u.OnboardedAt,
+		u.Timezone, u.OnboardedAt,
 	).Scan(&u.ID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return domain.ErrNotFound
@@ -96,89 +90,12 @@ func (r *UserRepo) Update(ctx context.Context, u domain.User) error {
 	return nil
 }
 
-func (r *UserRepo) ListDueForNudge(ctx context.Context, now time.Time) ([]domain.User, error) {
-	rows, err := r.pool.Query(ctx, `
-		select `+userColumns+`
-		from users u
-		cross join lateral (
-			select $1::timestamptz at time zone u.timezone as local_now
-		) local_time
-		cross join lateral (
-			values
-				(local_time.local_now::date + u.nudge_at),
-				(local_time.local_now::date - 1 + u.nudge_at)
-		) scheduled(due_at)
-		where u.nudge_enabled
-			and scheduled.due_at > local_time.local_now - interval '10 minutes'
-			and scheduled.due_at <= local_time.local_now
-			and not exists (
-				select 1 from log_entries le
-				where le.user_id = u.id and le.logged_at >= local_time.local_now::date at time zone u.timezone
-					and le.logged_at < (local_time.local_now::date + 1) at time zone u.timezone
-			)
-		order by u.id`, now)
-	if err != nil {
-		return nil, fmt.Errorf("list users due for nudge: %w", err)
-	}
-	defer rows.Close()
-
-	users := make([]domain.User, 0)
-	for rows.Next() {
-		u, scanErr := scanUser(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan user due for nudge: %w", scanErr)
-		}
-		users = append(users, u)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate users due for nudge: %w", err)
-	}
-	return users, nil
-}
-
-func (r *UserRepo) ListDueForWeeklySummary(ctx context.Context, now time.Time) ([]domain.User, error) {
-	rows, err := r.pool.Query(ctx, `
-		select `+userColumns+`
-		from users u
-		cross join lateral (
-			select $1::timestamptz at time zone u.timezone as local_now
-		) local_time
-		cross join lateral (
-			values
-				(local_time.local_now::date + u.nudge_at),
-				(local_time.local_now::date - 1 + u.nudge_at)
-		) scheduled(due_at)
-		where u.weekly_summary_enabled
-			and extract(isodow from scheduled.due_at) = 7
-			and scheduled.due_at > local_time.local_now - interval '10 minutes'
-			and scheduled.due_at <= local_time.local_now
-		order by u.id`, now)
-	if err != nil {
-		return nil, fmt.Errorf("list users due for weekly summary: %w", err)
-	}
-	defer rows.Close()
-
-	users := make([]domain.User, 0)
-	for rows.Next() {
-		u, scanErr := scanUser(rows)
-		if scanErr != nil {
-			return nil, fmt.Errorf("scan user due for weekly summary: %w", scanErr)
-		}
-		users = append(users, u)
-	}
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate users due for weekly summary: %w", err)
-	}
-	return users, nil
-}
-
 func scanUser(row pgx.Row) (domain.User, error) {
 	var u domain.User
 	err := row.Scan(
 		&u.ID, &u.TelegramID, &u.Sex, &u.Age, &u.HeightCM, &u.WeightKG,
 		&u.GoalWeightKG, &u.ActivityLevel, &u.KcalTarget, &u.ProteinTargetG,
-		&u.Timezone, &u.NudgeAt, &u.NudgeEnabled, &u.WeeklySummaryEnabled,
-		&u.OnboardedAt,
+		&u.Timezone, &u.OnboardedAt,
 	)
 	return u, err
 }

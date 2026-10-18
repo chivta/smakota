@@ -54,18 +54,15 @@ func (s *Server) register(c *gin.Context) {
 
 	now := time.Now()
 	user := domain.User{
-		TelegramID:           telegramID,
-		Sex:                  req.Sex,
-		Age:                  req.Age,
-		HeightCM:             req.HeightCM,
-		WeightKG:             req.WeightKG,
-		GoalWeightKG:         req.GoalWeightKG,
-		ActivityLevel:        req.ActivityLevel,
-		Timezone:             defaultString(req.Timezone, "Europe/Kyiv"),
-		NudgeAt:              "20:00",
-		NudgeEnabled:         true,
-		WeeklySummaryEnabled: true,
-		OnboardedAt:          &now,
+		TelegramID:    telegramID,
+		Sex:           req.Sex,
+		Age:           req.Age,
+		HeightCM:      req.HeightCM,
+		WeightKG:      req.WeightKG,
+		GoalWeightKG:  req.GoalWeightKG,
+		ActivityLevel: req.ActivityLevel,
+		Timezone:      defaultString(req.Timezone, "Europe/Kyiv"),
+		OnboardedAt:   &now,
 	}
 	user.KcalTarget = user.SuggestedTarget()
 	user.ProteinTargetG = user.SuggestedProtein()
@@ -85,12 +82,9 @@ func (s *Server) register(c *gin.Context) {
 }
 
 type updateMeRequest struct {
-	KcalTarget           *int     `json:"kcal_target"            validate:"omitempty,gte=800,lte=6000"`
-	ProteinTargetG       *int     `json:"protein_target_g"       validate:"omitempty,gte=20,lte=400"`
-	WeightKG             *float64 `json:"weight_kg"              validate:"omitempty,gte=30,lte=300"`
-	NudgeAt              *string  `json:"nudge_at"`
-	NudgeEnabled         *bool    `json:"nudge_enabled"`
-	WeeklySummaryEnabled *bool    `json:"weekly_summary_enabled"`
+	KcalTarget     *int     `json:"kcal_target"            validate:"omitempty,gte=800,lte=6000"`
+	ProteinTargetG *int     `json:"protein_target_g"       validate:"omitempty,gte=20,lte=400"`
+	WeightKG       *float64 `json:"weight_kg"              validate:"omitempty,gte=30,lte=300"`
 }
 
 func (s *Server) updateMe(c *gin.Context) {
@@ -116,9 +110,6 @@ func (s *Server) updateMe(c *gin.Context) {
 	applyIf(req.KcalTarget, &user.KcalTarget)
 	applyIf(req.ProteinTargetG, &user.ProteinTargetG)
 	applyIf(req.WeightKG, &user.WeightKG)
-	applyIf(req.NudgeAt, &user.NudgeAt)
-	applyIf(req.NudgeEnabled, &user.NudgeEnabled)
-	applyIf(req.WeeklySummaryEnabled, &user.WeeklySummaryEnabled)
 
 	err = s.users.Update(c.Request.Context(), user)
 	if err != nil {

@@ -18,7 +18,7 @@ servers:
 
 tags:
   - name: user
-    description: Onboarding, targets and notification settings.
+    description: Onboarding, targets and timezone.
   - name: food
     description: The catalogue, and resolving free-form input against it.
   - name: day
@@ -190,9 +190,6 @@ components:
         kcal_target: { type: integer }
         protein_target_g: { type: integer }
         timezone: { type: string }
-        nudge_at: { type: string, example: "20:00" }
-        nudge_enabled: { type: boolean }
-        weekly_summary_enabled: { type: boolean }
 
 security:
   - miniApp: []
@@ -276,7 +273,7 @@ paths:
         "404": { $ref: '#/components/responses/NotFound' }
     put:
       tags: [user]
-      summary: Update targets and notification settings
+      summary: Update targets and weight
       operationId: updateCurrentUser
       requestBody:
         required: true
@@ -288,9 +285,6 @@ paths:
                 kcal_target: { type: integer, minimum: 800, maximum: 6000 }
                 protein_target_g: { type: integer, minimum: 20, maximum: 400 }
                 weight_kg: { type: number, minimum: 30, maximum: 300 }
-                nudge_at: { type: string, example: "20:00" }
-                nudge_enabled: { type: boolean }
-                weekly_summary_enabled: { type: boolean }
       responses:
         "200":
           description: OK
