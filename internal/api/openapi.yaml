@@ -2,6 +2,8 @@ openapi: 3.0.3
 info:
   title: calbot API
   version: "1.0"
+  license:
+    name: Proprietary
   description: |
     Backend for the Ukrainian calorie-logging bot. It holds no Telegram-specific
     logic: the bot and the Mini App are both clients of these routes.
@@ -16,20 +18,30 @@ servers:
 
 tags:
   - name: user
+    description: Onboarding, targets and notification settings.
   - name: food
+    description: The catalogue, and resolving free-form input against it.
   - name: day
+    description: Logged entries and the day view.
   - name: weight
+    description: Optional weigh-ins, reported only as a rolling average.
   - name: ops
+    description: Probes and metrics. These need no credentials.
 
 components:
   securitySchemes:
     miniApp:
-      type: http
-      scheme: tma
+      type: apiKey
+      in: header
+      name: Authorization
       description: |
-        The Mini App sends `Authorization: tma <initData>`. The payload is
-        verified against the bot token with Telegram's HMAC scheme and is
-        rejected once it is older than 24 hours.
+        The Mini App sends `Authorization: tma <initData>`. Paste the whole
+        value including the `tma ` prefix. `tma` is not a registered HTTP auth
+        scheme, so this is declared as an apiKey header to keep Authorize and
+        Try it out working.
+
+        The payload is verified against the bot token with Telegram's HMAC
+        scheme and is rejected once it is older than 24 hours.
     service:
       type: http
       scheme: bearer
@@ -223,6 +235,7 @@ paths:
     get:
       tags: [ops]
       summary: Liveness probe
+      operationId: healthCheck
       security: []
       responses:
         "204": { description: Serving }
@@ -231,6 +244,7 @@ paths:
     get:
       tags: [ops]
       summary: Prometheus metrics
+      operationId: getMetrics
       security: []
       responses:
         "200":
@@ -242,6 +256,7 @@ paths:
     post:
       tags: [user]
       summary: Complete onboarding
+      operationId: registerUser
       description: |
         Computes maintenance from Mifflin-St Jeor and a deficit target, and
         returns both so the client can show the rationale and offer an override.
@@ -282,6 +297,7 @@ paths:
     get:
       tags: [user]
       summary: Current user
+      operationId: getCurrentUser
       parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       responses:
         "200":
@@ -294,6 +310,7 @@ paths:
     put:
       tags: [user]
       summary: Update targets and notification settings
+      operationId: updateCurrentUser
       parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
@@ -320,6 +337,7 @@ paths:
     post:
       tags: [food]
       summary: Resolve free-form input to ranked candidates
+      operationId: resolveInput
       description: |
         The single pipeline every input mode converges on. A quantity found in
         the phrase is returned so the client can skip the portion step. An
@@ -359,6 +377,7 @@ paths:
     get:
       tags: [food]
       summary: One catalogue entry
+      operationId: getFood
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
         - { $ref: '#/components/parameters/telegramUser' }
@@ -374,6 +393,7 @@ paths:
     get:
       tags: [food]
       summary: Look up a product by barcode
+      operationId: getFoodByBarcode
       description: A miss is queued for review so the barcode reaches the expansion list.
       parameters:
         - { name: code, in: path, required: true, schema: { type: string }, example: "04820001316384" }
@@ -390,6 +410,7 @@ paths:
     post:
       tags: [food]
       summary: Create a personal entry
+      operationId: createPersonalFood
       description: |
         The escape hatch after two failed refinements. The entry belongs to this
         user and outranks the catalogue for them.
@@ -419,9 +440,11 @@ paths:
     get:
       tags: [food]
       summary: Quick-add list
+      operationId: listRecents
       description: The 8 most-logged foods from the last 14 days, each with its last-used amount.
       parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       responses:
+        "401": { $ref: '#/components/responses/Unauthorized' }
         "200":
           description: OK
           content:
@@ -434,6 +457,7 @@ paths:
     get:
       tags: [day]
       summary: One day
+      operationId: getDay
       parameters:
         - { $ref: '#/components/parameters/date' }
         - { $ref: '#/components/parameters/telegramUser' }
@@ -449,10 +473,13 @@ paths:
     post:
       tags: [day]
       summary: Copy the previous day onto this one
+      operationId: repeatDay
       parameters:
         - { $ref: '#/components/parameters/date' }
         - { $ref: '#/components/parameters/telegramUser' }
       responses:
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
         "200":
           description: OK
           content:
@@ -466,6 +493,7 @@ paths:
     post:
       tags: [day]
       summary: Log a food
+      operationId: createEntry
       description: |
         Accepts either grams or a count of a named portion. Nutrition is
         snapshotted at save time, so a later catalogue correction never rewrites
@@ -497,6 +525,7 @@ paths:
     patch:
       tags: [day]
       summary: Change an entry's amount
+      operationId: updateEntry
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
         - { $ref: '#/components/parameters/telegramUser' }
@@ -515,6 +544,7 @@ paths:
     delete:
       tags: [day]
       summary: Delete an entry
+      operationId: deleteEntry
       parameters:
         - { name: id, in: path, required: true, schema: { type: integer, format: int64 } }
         - { $ref: '#/components/parameters/telegramUser' }
@@ -526,6 +556,7 @@ paths:
     post:
       tags: [weight]
       summary: Record a weigh-in
+      operationId: createWeight
       parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       requestBody:
         required: true
@@ -545,8 +576,10 @@ paths:
     get:
       tags: [weight]
       summary: 7-day rolling average
+      operationId: getWeightTrend
       parameters: [{ $ref: '#/components/parameters/telegramUser' }]
       responses:
+        "401": { $ref: '#/components/responses/Unauthorized' }
         "200":
           description: OK
           content:

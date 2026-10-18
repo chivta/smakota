@@ -29,7 +29,7 @@ const docsPage = `<!doctype html>
   <div id="ui"></div>
   <script src="https://cdn.jsdelivr.net/npm/swagger-ui-dist@` + swaggerUIVersion + `/swagger-ui-bundle.js"></script>
   <script>
-    SwaggerUIBundle({ url: "openapi.yaml", dom_id: "#ui", tryItOutEnabled: true });
+    SwaggerUIBundle({ url: "/docs/openapi.yaml", dom_id: "#ui", tryItOutEnabled: true });
   </script>
 </body>
 </html>`
