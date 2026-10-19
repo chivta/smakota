@@ -1,11 +1,5 @@
 [
   {
-    "name": "Фора",
-    "url": "https://fora.ua",
-    "category": "grocery",
-    "reason": "React app. Its JSON-RPC backend EcomCatalogGlobal defines a nutritionalValue field, but no populated values were found and search snippets show no КБЖУ."
-  },
-  {
     "name": "Velmart",
     "url": "https://velmart.ua",
     "category": "grocery",
