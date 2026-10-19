@@ -10,6 +10,7 @@ import (
 	"github.com/arvlas/calbot/internal/api"
 	"github.com/arvlas/calbot/internal/config"
 	"github.com/arvlas/calbot/internal/ingest"
+	"github.com/arvlas/calbot/internal/ingest/fora"
 	"github.com/arvlas/calbot/internal/ingest/off"
 	"github.com/arvlas/calbot/internal/ingest/proe"
 	"github.com/arvlas/calbot/internal/ingest/silpo"
@@ -68,6 +69,7 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 	registry, err := ingest.NewRegistry(
 		silpo.New(httpClient, cfg.SilpoBranchID),
 		zakaz.New(zakaz.NewHTTPClient(cfg.IngestUserAgent), cfg.ZakazStoreIDs),
+		fora.New(httpClient, cfg.ForaFilialIDs),
 		proe.New(httpClient, cfg.ProeBaseURL),
 		usda.New(httpClient, cfg.USDAAPIKey, cfg.USDAQueries),
 	)

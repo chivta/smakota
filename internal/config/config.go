@@ -28,6 +28,9 @@ type Config struct {
 	OFFDumpURL      string `env:"OFF_DUMP_URL"      envDefault:"https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz" validate:"required,url"`
 
 	ZakazStoreIDs []string `env:"ZAKAZ_STORE_IDS" envDefault:"482010105" envSeparator:"," validate:"min=1,dive,required"`
+	// ForaFilialIDs is an ordered fallback list of big Kyiv stores; each stocks
+	// a subset of the range, so the adapter unions them.
+	ForaFilialIDs []int    `env:"FORA_FILIAL_IDS" envDefault:"3433,3410,3805,1851,3356" envSeparator:"," validate:"min=1,dive,gt=0"`
 	USDAAPIKey    string   `env:"USDA_API_KEY"    envDefault:"DEMO_KEY" validate:"required"`
 	USDAQueries   []string `env:"USDA_QUERIES"    envDefault:"chicken breast,beef,pork,egg,milk,cheese,butter,rice,buckwheat,oats,pasta,bread,potato,tomato,cucumber,carrot,cabbage,onion,apple,banana,orange,salmon,tuna,lentils,sunflower oil,olive oil,sugar,honey" envSeparator:"," validate:"min=1,dive,required"`
 	ProeBaseURL   string   `env:"PROE_BASE_URL"   envDefault:"https://proe.info" validate:"required,url"`

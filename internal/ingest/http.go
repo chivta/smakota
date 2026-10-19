@@ -63,6 +63,16 @@ func (c *HTTPClient) ResetCache() {
 // Get performs a rate-limited GET. cacheETag must be false for streaming
 // downloads because caching requires holding the response body in memory.
 func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPerSecond rate.Limit, cacheETag bool) (*http.Response, error) {
+	return c.do(ctx, source, http.MethodGet, rawURL, nil, nil, requestsPerSecond, cacheETag)
+}
+
+// PostJSON performs a rate-limited POST of a JSON body with the extra headers.
+// Responses are never ETag-cached.
+func (c *HTTPClient) PostJSON(ctx context.Context, source, rawURL string, body []byte, header http.Header, requestsPerSecond rate.Limit) (*http.Response, error) {
+	return c.do(ctx, source, http.MethodPost, rawURL, body, header, requestsPerSecond, false)
+}
+
+func (c *HTTPClient) do(ctx context.Context, source, method, rawURL string, body []byte, header http.Header, requestsPerSecond rate.Limit, cacheETag bool) (*http.Response, error) {
 	limiter := c.limiter(source, requestsPerSecond)
 	var lastStatus int
 	for attempt := 0; attempt < maxHTTPAttempts; attempt++ {
@@ -77,10 +87,17 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 			deadline.Stop()
 			cancelFn()
 		}
-		request, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, rawURL, nil)
+		var requestBody io.Reader
+		if body != nil {
+			requestBody = bytes.NewReader(body)
+		}
+		request, err := http.NewRequestWithContext(attemptCtx, method, rawURL, requestBody)
 		if err != nil {
 			cancelAttempt()
 			return nil, fmt.Errorf("create %s request: %w", source, err)
+		}
+		for name, values := range header {
+			request.Header[name] = values
 		}
 		request.Header.Set("User-Agent", c.userAgent)
 		if cacheETag {

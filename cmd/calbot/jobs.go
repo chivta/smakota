@@ -20,7 +20,7 @@ const (
 	dumpTimeout     = 6 * time.Hour
 	quickJobTimeout = 5 * time.Minute
 	// allIngestTimeout covers every adapter running back to back.
-	allIngestTimeout = dumpTimeout + 4*crawlTimeout
+	allIngestTimeout = dumpTimeout + 5*crawlTimeout
 )
 
 // Job names for the two OFF modes. The registry and the schedule both use them.
@@ -70,6 +70,7 @@ func (c *container) jobs() []scheduler.Job {
 		ingestJob("zakaz", scheduler.Weekly(time.Tuesday, 2, 0), crawlTimeout),
 		ingestJob("proe", scheduler.Weekly(time.Wednesday, 2, 0), crawlTimeout),
 		ingestJob("usda", scheduler.Weekly(time.Thursday, 2, 0), crawlTimeout),
+		ingestJob("fora", scheduler.Weekly(time.Friday, 2, 0), crawlTimeout),
 		{
 			Name:    "ingest-all",
 			Due:     scheduler.Never(),
