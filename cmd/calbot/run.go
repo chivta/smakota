@@ -62,13 +62,20 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 	ingests := postgres.NewIngestRepo(pool)
 
 	httpClient := ingest.NewHTTPClient(nil, cfg.IngestUserAgent)
+	// The dump download outlasts the default client's whole-request timeout.
+	dumpClient := ingest.NewHTTPClient(&http.Client{}, cfg.IngestUserAgent)
 	registry, err := ingest.NewRegistry(
-		off.New(httpClient, cfg.OFFDumpURL),
 		silpo.New(httpClient, cfg.SilpoBranchID),
 		zakaz.New(zakaz.NewHTTPClient(cfg.IngestUserAgent), cfg.ZakazStoreIDs),
 		proe.New(httpClient, cfg.ProeBaseURL),
 		usda.New(httpClient, cfg.USDAAPIKey, cfg.USDAQueries),
 	)
+	if err == nil {
+		err = registry.Register(offDeltaJob, off.NewDelta(httpClient))
+	}
+	if err == nil {
+		err = registry.Register(offFullJob, off.NewFull(dumpClient, cfg.OFFDumpURL))
+	}
 	if err != nil {
 		pool.Close()
 		return nil, fmt.Errorf("build ingest registry: %w", err)
@@ -85,7 +92,7 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		ingests:  ingests,
 		locker:   postgres.NewLocker(pool),
 		registry: registry,
-		runner:   ingest.NewRunner(ingestStore{repo: ingests}),
+		runner:   ingest.NewRunner(ingestStore{repo: ingests}, cfg.IngestRejectCap),
 	}, nil
 }
 

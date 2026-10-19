@@ -71,7 +71,12 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 			return nil, fmt.Errorf("wait for %s rate limit: %w", source, err)
 		}
 
-		attemptCtx, cancelAttempt := context.WithTimeout(ctx, requestTimeout)
+		attemptCtx, cancelFn := context.WithCancel(ctx)
+		deadline := time.AfterFunc(requestTimeout, cancelFn)
+		cancelAttempt := func() {
+			deadline.Stop()
+			cancelFn()
+		}
 		request, err := http.NewRequestWithContext(attemptCtx, http.MethodGet, rawURL, nil)
 		if err != nil {
 			cancelAttempt()
@@ -97,6 +102,10 @@ func (c *HTTPClient) Get(ctx context.Context, source, rawURL string, requestsPer
 			continue
 		}
 
+		if !cacheETag {
+			// A streamed body may legitimately outlast one attempt.
+			deadline.Stop()
+		}
 		lastStatus = response.StatusCode
 		if response.StatusCode == http.StatusNotModified && cacheETag {
 			response.Body.Close()

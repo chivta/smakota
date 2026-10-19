@@ -22,7 +22,10 @@ type Config struct {
 
 	IngestUserAgent string `env:"INGEST_USER_AGENT" envDefault:"calbot/1.0" validate:"required"`
 	SilpoBranchID   string `env:"SILPO_BRANCH_ID"   envDefault:"00000000-0000-0000-0000-000000000000"`
-	OFFDumpURL      string `env:"OFF_DUMP_URL"      envDefault:"https://static.openfoodfacts.org/data/openfoodfacts-products.jsonl.gz" validate:"required,url"`
+	// IngestRejectCap bounds the review-queue rows one run stores per distinct
+	// rejection reason; the rest are only counted.
+	IngestRejectCap int    `env:"INGEST_REJECT_CAP" envDefault:"50"          validate:"min=0"`
+	OFFDumpURL      string `env:"OFF_DUMP_URL"      envDefault:"https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz" validate:"required,url"`
 
 	ZakazStoreIDs []string `env:"ZAKAZ_STORE_IDS" envDefault:"482010105" envSeparator:"," validate:"min=1,dive,required"`
 	USDAAPIKey    string   `env:"USDA_API_KEY"    envDefault:"DEMO_KEY" validate:"required"`

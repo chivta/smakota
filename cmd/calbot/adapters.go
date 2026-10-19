@@ -64,12 +64,21 @@ func (s ingestStore) PendingStaged(ctx context.Context, source string, limit int
 	return out, nil
 }
 
-func (s ingestStore) Promote(ctx context.Context, item ingest.StagedItem) (ingest.PromoteResult, error) {
-	result, err := s.repo.Promote(ctx, toRepoItem(item))
-	if err != nil {
-		return ingest.PromoteResult{}, err
+func (s ingestStore) PromoteBatch(ctx context.Context, items []ingest.StagedItem) ([]ingest.PromoteResult, error) {
+	converted := make([]postgres.StagedItem, len(items))
+	for i, item := range items {
+		converted[i] = toRepoItem(item)
 	}
-	return ingest.PromoteResult(result), nil
+	found, err := s.repo.PromoteBatch(ctx, converted)
+	if err != nil {
+		return nil, err
+	}
+
+	results := make([]ingest.PromoteResult, len(found))
+	for i, result := range found {
+		results[i] = ingest.PromoteResult(result)
+	}
+	return results, nil
 }
 
 func (s ingestStore) MarkStatus(ctx context.Context, stagingID int64, status, reason string) error {

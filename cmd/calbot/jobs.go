@@ -21,6 +21,12 @@ const (
 	allIngestTimeout = dumpTimeout + 4*crawlTimeout
 )
 
+// Job names for the two OFF modes. The registry and the schedule both use them.
+const (
+	offDeltaJob = "off-delta"
+	offFullJob  = "off-full"
+)
+
 func runScheduler(ctx context.Context, cfg config.Config) error {
 	c, err := build(ctx, cfg)
 	if err != nil {
@@ -56,8 +62,8 @@ func (c *container) jobs() []scheduler.Job {
 	}
 
 	return []scheduler.Job{
-		ingestJob("off-delta", scheduler.Daily(3, 0), crawlTimeout),
-		ingestJob("off-full", scheduler.Weekly(time.Sunday, 2, 0), dumpTimeout),
+		ingestJob(offDeltaJob, scheduler.Daily(3, 0), crawlTimeout),
+		ingestJob(offFullJob, scheduler.Weekly(time.Sunday, 2, 0), dumpTimeout),
 		ingestJob("silpo", scheduler.Weekly(time.Monday, 2, 0), crawlTimeout),
 		ingestJob("zakaz", scheduler.Weekly(time.Tuesday, 2, 0), crawlTimeout),
 		ingestJob("proe", scheduler.Weekly(time.Wednesday, 2, 0), crawlTimeout),
