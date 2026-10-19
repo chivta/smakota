@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
+	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
 	"github.com/arvlas/calbot/internal/metrics"
@@ -42,6 +44,20 @@ type RawProduct struct {
 	Protein    string
 	Fat        string
 	Carbs      string
+}
+
+// cursorKeyed is implemented by an adapter whose jobs keep separate progress
+// under one source name, as OFF's delta and full runs do.
+type cursorKeyed interface {
+	CursorKey() string
+}
+
+func cursorKey(adapter Adapter) string {
+	keyed, ok := adapter.(cursorKeyed)
+	if ok {
+		return keyed.CursorKey()
+	}
+	return adapter.Name()
 }
 
 // Raw is one fetched source row. Cursor is optional and allows page-level
@@ -91,7 +107,10 @@ type Counts struct {
 	Fetched  int
 	Staged   int
 	Rejected int
-	Promoted int
+	// RejectedDropped is the part of Rejected that was counted but not stored
+	// for review, because its reason had already reached the per-run cap.
+	RejectedDropped int
+	Promoted        int
 }
 
 // PromoteResult describes whether promotion changed the catalogue or found a
@@ -112,18 +131,33 @@ type store interface {
 	Stage(ctx context.Context, items []StagedItem) (int, error)
 	Reject(ctx context.Context, source, externalID, reason string, payload []byte) error
 	PendingStaged(ctx context.Context, source string, limit int) ([]StagedItem, error)
-	Promote(ctx context.Context, item StagedItem) (PromoteResult, error)
+	// PromoteBatch returns one result per item, in order.
+	PromoteBatch(ctx context.Context, items []StagedItem) ([]PromoteResult, error)
 	MarkStatus(ctx context.Context, stagingID int64, status, reason string) error
 }
+
+// Batch sizes. Staging and promotion each run one transaction per batch, so a
+// million-row source costs thousands of transactions rather than millions.
+const (
+	stageBatchSize   = 1000
+	promoteBatchSize = 1000
+
+	// flushTimeout bounds the final flush of an interrupted run, which has to
+	// outlive the cancelled context that interrupted it.
+	flushTimeout = time.Minute
+)
 
 // Runner executes the ingestion phases for one adapter.
 type Runner struct {
 	store store
+	// rejectCap is how many rejected rows per distinct reason a run stores in
+	// the review queue. Every rejection is counted regardless.
+	rejectCap int
 }
 
 // NewRunner constructs a runner using the catalogue's ingest repository.
-func NewRunner(store store) *Runner {
-	return &Runner{store: store}
+func NewRunner(store store, rejectCap int) *Runner {
+	return &Runner{store: store, rejectCap: rejectCap}
 }
 
 // Run fetches and stages the source, then promotes all pending staged rows.
@@ -143,63 +177,78 @@ func (r *Runner) Run(ctx context.Context, adapter Adapter) error {
 	return errors.Join(runErr, finishErr)
 }
 
+// batch buffers staged rows until a flush. cursor is the progress the buffered
+// rows account for; it is saved only after they are staged, so a killed run
+// never resumes past rows that were not written.
+type batch struct {
+	items  []StagedItem
+	cursor string
+}
+
 func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *Counts) error {
 	source := adapter.Name()
+	key := cursorKey(adapter)
 
-	// Promote what a previous run staged before fetching more. Promotion
-	// otherwise happens only after a complete fetch, so an interrupted crawl
-	// would leave its rows staged and invisible until the next full pass.
+	// Promote what a previous run staged before fetching more, so an
+	// interrupted crawl does not leave its rows staged and invisible.
 	err := r.promotePending(ctx, source, counts)
 	if err != nil {
 		return err
 	}
 
-	cursor, _, err := r.store.Cursor(ctx, source)
+	cursor, _, err := r.store.Cursor(ctx, key)
 	if err != nil {
 		return fmt.Errorf("read %s cursor: %w", source, err)
 	}
 
+	var buffered batch
+	rejects := newRejectLimiter(r.rejectCap)
 	nextCursor, err := adapter.Fetch(ctx, cursor, func(raw Raw) error {
 		// A checkpoint is progress only. Inferring it from empty fields would
 		// swallow a malformed product row that belongs in the reject queue.
 		if raw.Checkpoint {
-			return r.store.SetCursor(ctx, source, raw.Cursor)
+			buffered.cursor = raw.Cursor
+			return r.flush(ctx, source, key, &buffered, counts)
 		}
 		counts.Fetched++
 		countRows(source, stageFetched, 1)
 		normalized, normalizeErr := Normalize(source, adapter.Provenance(), raw)
 		if normalizeErr != nil {
-			return r.reject(ctx, runID, source, raw, normalizeErr, counts)
+			return r.reject(ctx, rejects, source, raw, normalizeErr, counts)
 		}
 
 		validateErr := Validate(normalized.Nutrition)
 		if validateErr != nil {
-			return r.reject(ctx, runID, source, raw, validateErr, counts)
+			return r.reject(ctx, rejects, source, raw, validateErr, counts)
 		}
 
 		item, itemErr := newStagedItem(runID, source, raw, normalized)
 		if itemErr != nil {
 			return itemErr
 		}
-		staged, stageErr := r.store.Stage(ctx, []StagedItem{item})
-		if stageErr != nil {
-			return fmt.Errorf("stage %s product %s: %w", source, raw.ExternalID, stageErr)
-		}
-		counts.Staged += staged
-		countRows(source, stageStaged, staged)
+		buffered.items = append(buffered.items, item)
 		if raw.Cursor != "" {
-			setErr := r.store.SetCursor(ctx, source, raw.Cursor)
-			if setErr != nil {
-				return fmt.Errorf("save %s cursor: %w", source, setErr)
-			}
+			buffered.cursor = raw.Cursor
 		}
-		return nil
+		if len(buffered.items) < stageBatchSize {
+			return nil
+		}
+		return r.flush(ctx, source, key, &buffered, counts)
 	})
 	if err != nil {
-		return fmt.Errorf("fetch %s: %w", source, err)
+		// Keep what was fetched before the failure, including when the cause
+		// is the cancellation that is stopping the run.
+		flushCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), flushTimeout)
+		defer cancel()
+		flushErr := r.flush(flushCtx, source, key, &buffered, counts)
+		return errors.Join(fmt.Errorf("fetch %s: %w", source, err), flushErr)
+	}
+	err = r.flush(ctx, source, key, &buffered, counts)
+	if err != nil {
+		return err
 	}
 	if nextCursor != "" {
-		err = r.store.SetCursor(ctx, source, nextCursor)
+		err = r.store.SetCursor(ctx, key, nextCursor)
 		if err != nil {
 			return fmt.Errorf("save %s cursor: %w", source, err)
 		}
@@ -208,7 +257,27 @@ func (r *Runner) run(ctx context.Context, runID int64, adapter Adapter, counts *
 	return r.promotePending(ctx, source, counts)
 }
 
-const promoteBatchSize = 500
+// flush stages the buffered rows, saves the progress they account for, and
+// promotes them.
+func (r *Runner) flush(ctx context.Context, source, key string, buffered *batch, counts *Counts) error {
+	if len(buffered.items) > 0 {
+		staged, err := r.store.Stage(ctx, buffered.items)
+		if err != nil {
+			return fmt.Errorf("stage %d %s products: %w", len(buffered.items), source, err)
+		}
+		counts.Staged += staged
+		countRows(source, stageStaged, staged)
+		buffered.items = buffered.items[:0]
+	}
+	if buffered.cursor != "" {
+		err := r.store.SetCursor(ctx, key, buffered.cursor)
+		if err != nil {
+			return fmt.Errorf("save %s cursor: %w", source, err)
+		}
+		buffered.cursor = ""
+	}
+	return r.promotePending(ctx, source, counts)
+}
 
 // promotePending publishes every staged row for a source. Promote is the only
 // writer of the catalogue, and it refuses to overwrite a higher-confidence row.
@@ -221,33 +290,68 @@ func (r *Runner) promotePending(ctx context.Context, source string, counts *Coun
 		if len(pending) == 0 {
 			return nil
 		}
-		for _, item := range pending {
-			result, promoteErr := r.store.Promote(ctx, item)
-			if promoteErr != nil {
-				return fmt.Errorf("promote %s product %s: %w", source, item.ExternalID, promoteErr)
-			}
+		results, promoteErr := r.store.PromoteBatch(ctx, pending)
+		if promoteErr != nil {
+			return fmt.Errorf("promote %d %s products: %w", len(pending), source, promoteErr)
+		}
+		for i, result := range results {
 			if result.Promoted {
 				counts.Promoted++
 				countRows(source, stagePromoted, 1)
 				continue
 			}
 			if !result.Conflict {
-				markErr := r.store.MarkStatus(ctx, item.ID, "conflict", "promotion produced no result")
+				markErr := r.store.MarkStatus(ctx, pending[i].ID, "conflict", "promotion produced no result")
 				if markErr != nil {
-					return fmt.Errorf("mark %s product %s conflict: %w", source, item.ExternalID, markErr)
+					return fmt.Errorf("mark %s product %s conflict: %w", source, pending[i].ExternalID, markErr)
 				}
 			}
 		}
 	}
 }
 
-func (r *Runner) reject(ctx context.Context, runID int64, source string, raw Raw, cause error, counts *Counts) error {
+// rejectLimiter caps how many rejections per distinct reason a run stores.
+type rejectLimiter struct {
+	limit  int
+	stored map[string]int
+}
+
+func newRejectLimiter(limit int) *rejectLimiter {
+	return &rejectLimiter{limit: limit, stored: map[string]int{}}
+}
+
+// take reports whether one more rejection of this reason may be stored.
+func (l *rejectLimiter) take(reason string) bool {
+	key := reasonKey(reason)
+	if l.stored[key] >= l.limit {
+		return false
+	}
+	l.stored[key]++
+	return true
+}
+
+var (
+	reasonNumber = regexp.MustCompile(`[-+]?\d+(?:[.,]\d+)?`)
+	reasonQuoted = regexp.MustCompile(`"[^"]*"`)
+)
+
+// reasonKey folds the values out of a reason, so "stated 120.50 kcal" and
+// "stated 87 kcal" count as one reason.
+func reasonKey(reason string) string {
+	return reasonNumber.ReplaceAllString(reasonQuoted.ReplaceAllString(reason, `"?"`), "#")
+}
+
+func (r *Runner) reject(ctx context.Context, limiter *rejectLimiter, source string, raw Raw, cause error, counts *Counts) error {
+	counts.Rejected++
+	countRows(source, stageRejected, 1)
+	if !limiter.take(cause.Error()) {
+		counts.RejectedDropped++
+		return nil
+	}
 	err := r.store.Reject(ctx, source, raw.ExternalID, cause.Error(), raw.Payload)
 	if err != nil {
 		return fmt.Errorf("reject %s product %s: %w", source, raw.ExternalID, err)
 	}
-	counts.Rejected++
-	countRows(source, stageRejected, 1)
 	return nil
 }
 

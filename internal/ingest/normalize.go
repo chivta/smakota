@@ -10,6 +10,10 @@ import (
 	"github.com/arvlas/calbot/internal/domain"
 )
 
+// maxPackageG keeps a mistyped package weight out of foods.package_g, which
+// holds at most 999999.99 and fails the whole promote batch beyond that.
+const maxPackageG = 100_000
+
 var (
 	numberPattern  = regexp.MustCompile(`[-+]?\d+(?:[.,]\d+)?`)
 	rangeSeparator = regexp.MustCompile(`(\d)\s*-\s*(\d)`)
@@ -166,6 +170,9 @@ func parsePackageGrams(text string) (*float64, error) {
 	}
 	if grams <= 0 {
 		return nil, fmt.Errorf("package weight must be positive")
+	}
+	if grams > maxPackageG {
+		return nil, fmt.Errorf("package weight exceeds %d g", maxPackageG)
 	}
 	return &grams, nil
 }

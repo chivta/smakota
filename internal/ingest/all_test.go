@@ -43,10 +43,12 @@ func (a fakeAdapter) Fetch(_ context.Context, _ string, emit func(Raw) error) (s
 
 // fakeStore records what reached it without needing a database.
 type fakeStore struct {
-	nextRunID int64
-	staged    map[string]int
-	finished  map[int64]error
-	cursors   map[string]string
+	nextRunID  int64
+	staged     map[string]int
+	stageCalls []int
+	rejected   []string
+	finished   map[int64]error
+	cursors    map[string]string
 }
 
 func newFakeStore() *fakeStore {
@@ -74,20 +76,24 @@ func (s *fakeStore) SetCursor(_ context.Context, source, cursor string) error {
 }
 
 func (s *fakeStore) Stage(_ context.Context, items []StagedItem) (int, error) {
+	s.stageCalls = append(s.stageCalls, len(items))
 	for _, item := range items {
 		s.staged[item.SourceID]++
 	}
 	return len(items), nil
 }
 
-func (s *fakeStore) Reject(context.Context, string, string, string, []byte) error { return nil }
+func (s *fakeStore) Reject(_ context.Context, _, externalID, _ string, _ []byte) error {
+	s.rejected = append(s.rejected, externalID)
+	return nil
+}
 
 func (s *fakeStore) PendingStaged(context.Context, string, int) ([]StagedItem, error) {
 	return nil, nil
 }
 
-func (s *fakeStore) Promote(context.Context, StagedItem) (PromoteResult, error) {
-	return PromoteResult{}, nil
+func (s *fakeStore) PromoteBatch(_ context.Context, items []StagedItem) ([]PromoteResult, error) {
+	return make([]PromoteResult, len(items)), nil
 }
 
 func (s *fakeStore) MarkStatus(context.Context, int64, string, string) error { return nil }

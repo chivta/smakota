@@ -61,3 +61,29 @@ func TestNormalizeNutritionRejectsUnsupportedText(t *testing.T) {
 		t.Fatal("NormalizeNutrition() error = nil, want parsing error")
 	}
 }
+
+func TestParsePackageGrams(t *testing.T) {
+	tests := []struct {
+		text    string
+		want    float64
+		wantErr bool
+	}{
+		{"250 g", 250, false},
+		{"1,5 kg", 1500, false},
+		{"100000 g", 100000, false},
+		{"100001 g", 0, true},
+		{"5000000", 0, true},
+		{"0 g", 0, true},
+	}
+	for _, test := range tests {
+		t.Run(test.text, func(t *testing.T) {
+			got, err := parsePackageGrams(test.text)
+			if (err != nil) != test.wantErr {
+				t.Fatalf("error = %v, want error %v", err, test.wantErr)
+			}
+			if err == nil && *got != test.want {
+				t.Fatalf("grams = %v, want %v", *got, test.want)
+			}
+		})
+	}
+}

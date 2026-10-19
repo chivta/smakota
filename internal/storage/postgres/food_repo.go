@@ -307,3 +307,64 @@ func replaceFoodDetails(ctx context.Context, tx pgx.Tx, f domain.Food) error {
 	}
 	return nil
 }
+
+// replaceFoodDetailsBatch is replaceFoodDetails for many foods in a fixed
+// number of statements. Aliases that fold to the same norm collapse to the
+// last one listed, as the row-by-row upsert did.
+func replaceFoodDetailsBatch(ctx context.Context, tx pgx.Tx, foods []domain.Food) error {
+	if len(foods) == 0 {
+		return nil
+	}
+	foodIDs := make([]int64, len(foods))
+	var portionFoods []int64
+	var portionNames []string
+	var portionGrams []float64
+	var portionDefaults []bool
+	var aliasFoods []int64
+	var aliasTexts, aliasLangs []string
+	for i, f := range foods {
+		foodIDs[i] = f.ID
+		for _, portion := range f.Portions {
+			portionFoods = append(portionFoods, f.ID)
+			portionNames = append(portionNames, portion.Name)
+			portionGrams = append(portionGrams, portion.Grams)
+			portionDefaults = append(portionDefaults, portion.IsDefault)
+		}
+		aliasFoods = append(aliasFoods, f.ID)
+		aliasTexts = append(aliasTexts, f.Name)
+		aliasLangs = append(aliasLangs, "uk")
+		for _, alias := range f.Aliases {
+			aliasFoods = append(aliasFoods, f.ID)
+			aliasTexts = append(aliasTexts, alias.Alias)
+			aliasLangs = append(aliasLangs, alias.Lang)
+		}
+	}
+
+	_, err := tx.Exec(ctx, `delete from food_portions where food_id = any($1)`, foodIDs)
+	if err != nil {
+		return fmt.Errorf("delete food portions: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
+		insert into food_portions (food_id, name, grams, is_default)
+		select * from unnest($1::bigint[], $2::text[], $3::float8[], $4::bool[])`,
+		portionFoods, portionNames, portionGrams, portionDefaults)
+	if err != nil {
+		return fmt.Errorf("insert food portions: %w", err)
+	}
+	_, err = tx.Exec(ctx, `delete from food_aliases where food_id = any($1)`, foodIDs)
+	if err != nil {
+		return fmt.Errorf("delete food aliases: %w", err)
+	}
+	_, err = tx.Exec(ctx, `
+		insert into food_aliases (food_id, alias, norm, lang)
+		select distinct on (food_id, lower(unaccent(alias)))
+			food_id, alias, lower(unaccent(alias)), lang
+		from unnest($1::bigint[], $2::text[], $3::text[]) with ordinality
+			as t(food_id, alias, lang, ord)
+		order by food_id, lower(unaccent(alias)), ord desc`,
+		aliasFoods, aliasTexts, aliasLangs)
+	if err != nil {
+		return fmt.Errorf("insert food aliases: %w", err)
+	}
+	return nil
+}
