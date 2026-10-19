@@ -119,6 +119,26 @@ func TestEnergyOf(t *testing.T) {
 			want: "157/660",
 		},
 		{
+			name:   "kcal first with a dash",
+			params: []parameter{{Key: "kalorii", Value: "Ккал-244/кДж-1022"}},
+			want:   "244",
+		},
+		{
+			name:   "kcal first with a dash and a stray space",
+			params: []parameter{{Key: "kalorii", Value: "Ккал-339/кДж- 1419"}},
+			want:   "339",
+		},
+		{
+			name:   "macros inline with kcal last and comma decimals",
+			params: []parameter{{Key: "kalorii", Value: "Б-10;Ж-14,1;В-26,3;Ккал-272"}},
+			want:   "272",
+		},
+		{
+			name:   "kcal missing so it is derived from kJ",
+			params: []parameter{{Key: "kalorii", Value: "1835,5кДж (kJ) /  ккал (kcal)"}},
+			want:   "438.7",
+		},
+		{
 			name:   "unrecognised shape handed over so the row is rejected with a reason",
 			params: []parameter{{Key: "kalorii", Value: "енергія невідома"}},
 			want:   "енергія невідома",

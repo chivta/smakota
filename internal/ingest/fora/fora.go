@@ -235,29 +235,56 @@ func nutritionOf(params []parameter) (n nutrition, ok bool) {
 	return n, n != nutrition{}
 }
 
-// kcalFromLabelled pulls the kcal figure out of the own-production format,
-// "1143кДж (kJ) / 272 ккал (kcal)", where the kJ value comes first and both
-// halves are labelled. Packaged goods instead use "157/660", which the shared
-// normalizer already reads as a kcal/kJ pair, so that form is passed through
-// untouched.
-var kcalLabelled = regexp.MustCompile(`([0-9]+(?:[.,][0-9]+)?)\s*ккал`)
+// Own-production items put energy in kalorii, and the field is hand-typed, so
+// it arrives in several shapes. All of these were observed live:
+//
+//	1143кДж (kJ) / 272 ккал (kcal)
+//	Ккал-244/кДж-1022
+//	Ккал-339/кДж- 1419
+//	Б-10;Ж-14,1;В-26,3;Ккал-272
+//	1835,5кДж (kJ) /  ккал (kcal)      kcal missing, derive from kJ
+//
+// Packaged goods instead use calorie as a bare "157/660" pair, which the
+// shared normalizer already reads, so that form is passed through untouched.
+var (
+	kcalBefore = regexp.MustCompile(`([0-9]+(?:[.,][0-9]+)?)\s*ккал`)
+	kcalAfter  = regexp.MustCompile(`ккал[\s-]*([0-9]+(?:[.,][0-9]+)?)`)
+	kjBefore   = regexp.MustCompile(`([0-9]+(?:[.,][0-9]+)?)\s*кдж`)
+	kjAfter    = regexp.MustCompile(`кдж[\s-]*([0-9]+(?:[.,][0-9]+)?)`)
+)
 
-// energyOf prefers the packaged-goods key and falls back to the
-// own-production one.
+// kjPerKcal converts an energy figure when only kilojoules are given.
+const kjPerKcal = 4.184
+
+// energyOf prefers the packaged-goods key, then reads the hand-typed
+// own-production one, taking kcal where stated and converting from kJ where
+// it is not.
 func energyOf(params []parameter) string {
 	if v := parameterValue(params, keyCalorie); v != "" {
 		return v
 	}
-	labelled := parameterValue(params, keyKalorii)
-	if labelled == "" {
+	raw := parameterValue(params, keyKalorii)
+	if raw == "" {
 		return ""
 	}
-	if m := kcalLabelled.FindStringSubmatch(labelled); m != nil {
-		return m[1]
+	lowered := strings.ToLower(raw)
+
+	for _, re := range []*regexp.Regexp{kcalBefore, kcalAfter} {
+		if m := re.FindStringSubmatch(lowered); m != nil {
+			return strings.Replace(m[1], ",", ".", 1)
+		}
+	}
+	for _, re := range []*regexp.Regexp{kjBefore, kjAfter} {
+		if m := re.FindStringSubmatch(lowered); m != nil {
+			kj, err := strconv.ParseFloat(strings.Replace(m[1], ",", ".", 1), 64)
+			if err == nil && kj > 0 {
+				return strconv.FormatFloat(kj/kjPerKcal, 'f', 1, 64)
+			}
+		}
 	}
 	// An unrecognised shape is handed over as-is so the row is rejected with a
 	// reason rather than silently dropped.
-	return labelled
+	return raw
 }
 
 func parameterValue(params []parameter, key string) string {
