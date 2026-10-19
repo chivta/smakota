@@ -25,6 +25,8 @@ services:
       - /tmp/air/calbot
       - --tmp_dir
       - /tmp/air
+      - --build.include_ext
+      - go,yaml,html
       - --
       - api
     ports:
@@ -50,6 +52,8 @@ services:
       - /tmp/air/calbot
       - --tmp_dir
       - /tmp/air
+      - --build.include_ext
+      - go,yaml,html
       - --
       - scheduler
     depends_on:
