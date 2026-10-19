@@ -4,6 +4,7 @@ package silpo
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/arvlas/calbot/internal/domain"
 	"github.com/arvlas/calbot/internal/ingest"
+	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 )
 
@@ -26,6 +28,51 @@ const (
 	cursorDone      = "0"
 	cursorSeparator = ":"
 )
+
+// foodTopLevelSlugs are the top-level categories worth walking. A leaf is
+// food when its top-level ancestor is listed here; everything else (cosmetics,
+// household, pharmacy, alcohol, pet food, promo collections that only repeat
+// other categories) never costs a request. Лавка Традицій and Власні марки are
+// mixed, so their non-food leaves are skipped later for lacking nutrition.
+var foodTopLevelSlugs = map[string]bool{
+	"frukty-ovochi-4788": true,
+	"m-iaso-4411":        true,
+	"ryba-4430":          true,
+	"kovbasni-vyroby-i-m-iasni-delikatesy-4731": true,
+	"syry-1468":                        true,
+	"khlib-ta-vypichka-5121":           true,
+	"gotovi-stravy-i-kulinariia-4761":  true,
+	"molochni-produkty-ta-iaitsia-234": true,
+	"vlasni-marky-5202":                true,
+	"lavka-tradytsii-4487":             true,
+	"zdorove-kharchuvannia-4864":       true,
+	"bakaliia-i-konservy-4870":         true,
+	"sousy-i-spetsii-4938":             true,
+	"solodoshchi-498":                  true,
+	"sneky-ta-chypsy-5016":             true,
+	"kava-chai-359":                    true,
+	"napoi-52":                         true,
+	"zamorozhena-produktsiia-264":      true,
+}
+
+// errNoNutrition marks a product without a usable energy value.
+var errNoNutrition = errors.New("no nutrition")
+
+// errEmit wraps an error from emit so a store failure is not mistaken for a
+// skippable fetch failure.
+type errEmit struct{ err error }
+
+func (e errEmit) Error() string { return e.err.Error() }
+func (e errEmit) Unwrap() error { return e.err }
+
+// walkStats counts what one run skipped.
+type walkStats struct {
+	seen             map[string]struct{}
+	duplicates       int
+	noNutrition      int
+	failedProducts   int
+	failedCategories int
+}
 
 // Adapter pages product search and fetches each product's detail record.
 type Adapter struct {
@@ -81,10 +128,11 @@ func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw
 	if err != nil {
 		return "", err
 	}
-	categorySlugs, err := a.leafCategories(ctx)
+	categories, err := a.categories(ctx)
 	if err != nil {
 		return "", err
 	}
+	categorySlugs := foodLeafCategories(categories)
 	start := 0
 	if categorySlug != "" {
 		start = slices.Index(categorySlugs, categorySlug)
@@ -93,17 +141,33 @@ func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw
 		}
 	}
 
-	for _, id := range categorySlugs[start:] {
-		err = a.fetchCategory(ctx, id, offset, emit)
-		if err != nil {
-			return "", err
+	stats := &walkStats{seen: make(map[string]struct{})}
+	for _, slug := range categorySlugs[start:] {
+		err = a.fetchCategory(ctx, slug, offset, stats, emit)
+		var emitErr errEmit
+		switch {
+		case err == nil:
+		case ctx.Err() != nil:
+			return "", ctx.Err()
+		case errors.As(err, &emitErr):
+			return "", emitErr.err
+		default:
+			stats.failedCategories++
+			log.Warn().Err(err).Str("category", slug).Msg("silpo category skipped")
 		}
 		offset = 0
 	}
+	log.Info().
+		Int("categories", len(categorySlugs)).
+		Int("duplicates", stats.duplicates).
+		Int("no_nutrition", stats.noNutrition).
+		Int("failed_products", stats.failedProducts).
+		Int("failed_categories", stats.failedCategories).
+		Msg("silpo walk finished")
 	return cursorDone, nil
 }
 
-func (a *Adapter) fetchCategory(ctx context.Context, categoryID string, offset int, emit func(ingest.Raw) error) error {
+func (a *Adapter) fetchCategory(ctx context.Context, categoryID string, offset int, stats *walkStats, emit func(ingest.Raw) error) error {
 	for {
 		response, err := a.http.Get(ctx, a.Name(), a.productsURL(categoryID, offset), silpoRPS, true)
 		if err != nil {
@@ -126,15 +190,31 @@ func (a *Adapter) fetchCategory(ctx context.Context, categoryID string, offset i
 		for i, item := range items {
 			externalID := rawScalar(item.ExternalProductID)
 			if externalID == "" {
-				return fmt.Errorf("Silpo search item is missing externalProductId")
+				log.Warn().Str("category", categoryID).Int("offset", offset+i).Msg("silpo search item missing externalProductId")
+				stats.failedProducts++
+				continue
 			}
+			if _, dup := stats.seen[externalID]; dup {
+				stats.duplicates++
+				continue
+			}
+			stats.seen[externalID] = struct{}{}
 			raw, detailErr := a.fetchDetail(ctx, externalID)
-			if detailErr != nil {
-				return detailErr
+			switch {
+			case detailErr == nil:
+			case ctx.Err() != nil:
+				return ctx.Err()
+			case errors.Is(detailErr, errNoNutrition):
+				stats.noNutrition++
+				continue
+			default:
+				stats.failedProducts++
+				log.Warn().Err(detailErr).Str("external_id", externalID).Msg("silpo product skipped")
+				continue
 			}
 			raw.Cursor = formatCursor(categoryID, offset+i+1)
 			if emitErr := emit(raw); emitErr != nil {
-				return emitErr
+				return errEmit{emitErr}
 			}
 		}
 
@@ -149,10 +229,7 @@ func (a *Adapter) fetchCategory(ctx context.Context, categoryID string, offset i
 	}
 }
 
-// leafCategories returns category IDs that no other category lists as its
-// parent. The products filter already includes children, so walking parents
-// too would fetch every product several times.
-func (a *Adapter) leafCategories(ctx context.Context) ([]string, error) {
+func (a *Adapter) categories(ctx context.Context) ([]category, error) {
 	response, err := a.http.Get(ctx, a.Name(), baseURL+url.PathEscape(a.branchID)+"/categories", silpoRPS, true)
 	if err != nil {
 		return nil, err
@@ -171,18 +248,38 @@ func (a *Adapter) leafCategories(ctx context.Context) ([]string, error) {
 		}
 		categories = wrapped.Items
 	}
+	return categories, nil
+}
 
+// foodLeafCategories returns the slugs of leaf categories whose top-level
+// ancestor is a food category. The products filter already includes children,
+// so walking parents too would fetch every product several times.
+func foodLeafCategories(categories []category) []string {
+	byID := make(map[string]category, len(categories))
 	parents := make(map[string]bool, len(categories))
 	for _, c := range categories {
+		byID[c.ID] = c
 		parents[c.ParentID] = true
 	}
-	var ids []string
+	var slugs []string
 	for _, c := range categories {
-		if c.Slug != "" && !parents[c.ID] {
-			ids = append(ids, c.Slug)
+		if c.Slug == "" || parents[c.ID] {
+			continue
+		}
+		top := c
+		// The step bound guards against a parent cycle in the data.
+		for steps := 0; top.ParentID != "" && steps < len(categories); steps++ {
+			parent, ok := byID[top.ParentID]
+			if !ok {
+				break
+			}
+			top = parent
+		}
+		if foodTopLevelSlugs[top.Slug] {
+			slugs = append(slugs, c.Slug)
 		}
 	}
-	return ids, nil
+	return slugs
 }
 
 func (a *Adapter) productsURL(categoryID string, offset int) string {
@@ -216,9 +313,11 @@ func (a *Adapter) fetchDetail(ctx context.Context, externalID string) (ingest.Ra
 	product := productObject(detail)
 	nutrients, nutrientErr := nutrientAttributes(product)
 	if nutrientErr != nil {
-		// Leaving the values empty sends the row to the reject queue with a
-		// reason, which keeps it visible instead of ending the category walk.
-		nutrients = map[string]string{}
+		return ingest.Raw{}, errNoNutrition
+	}
+	kcal := firstMapString(nutrients, "calorie", "calories", "energy")
+	if kcal == "" {
+		return ingest.Raw{}, errNoNutrition
 	}
 	return ingest.Raw{
 		ExternalID: externalID,
@@ -229,7 +328,7 @@ func (a *Adapter) fetchDetail(ctx context.Context, externalID string) (ingest.Ra
 			Brand:    nestedString(product["brand"]),
 			Barcode:  firstString(product, "barcode", "ean"),
 			Quantity: firstString(product, "quantity", "weight", "displayRatio"),
-			Kcal:     firstMapString(nutrients, "calorie", "calories", "energy"),
+			Kcal:     kcal,
 			Protein:  firstMapString(nutrients, "proteins", "protein"),
 			Fat:      firstMapString(nutrients, "fats", "fat"),
 			Carbs:    firstMapString(nutrients, "carbohydrates", "carbs"),
@@ -267,7 +366,11 @@ func nutrientAttributes(detail map[string]any) (map[string]string, error) {
 				if !attributeOK {
 					continue
 				}
-				key := firstString(attribute, "key", "code", "slug", "name")
+				// The live shape is {attribute: {key}, value: {title}}.
+				key := nestedKey(attribute["attribute"])
+				if key == "" {
+					key = firstString(attribute, "key", "code", "slug", "name")
+				}
 				result[key] = firstString(attribute, "value", "text", "displayValue")
 			}
 		}
@@ -279,6 +382,13 @@ func nutrientAttributes(detail map[string]any) (map[string]string, error) {
 		return result, nil
 	}
 	return nil, fmt.Errorf("missing nutrient attribute group")
+}
+
+func nestedKey(value any) string {
+	if m, ok := value.(map[string]any); ok {
+		return firstString(m, "key", "id")
+	}
+	return ""
 }
 
 func firstString(values map[string]any, keys ...string) string {
