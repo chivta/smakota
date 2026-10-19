@@ -262,6 +262,17 @@ paths:
         - name: limit
           in: query
           schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: locale
+          in: query
+          required: false
+          schema: { type: string, default: uk, example: uk }
+          description: |
+            Biases ranking toward a market; it never filters, so a row from
+            another market still appears, only lower. Defaults to Ukrainian.
+            Rows from Ukrainian-market sources rank highest, then rows whose
+            name carries і, ї, є or ґ, which separates Ukrainian products from
+            the Russian and Bulgarian ones that share the Cyrillic script.
+            Any value other than `uk` currently applies no bias.
         - name: offset
           in: query
           schema: { type: integer, minimum: 0, default: 0 }

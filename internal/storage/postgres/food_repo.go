@@ -24,7 +24,36 @@ const (
 	FamiliarAtLogs      = 10
 	RecencyHalfLifeDays = 30
 	RecencyFloor        = 0.3
+
+	// A locale is a bias, never a filter: a row from the wrong market still
+	// appears, just lower. Ukrainian-market sources get the full weight;
+	// anything else whose name carries і, ї, є or ґ gets the partial one,
+	// which separates Ukrainian from the Russian and Bulgarian products that
+	// share the Cyrillic script. food_aliases.lang cannot be used for this:
+	// the ingest path hardcodes "uk", so it claims every row is Ukrainian.
+	LocaleSourceWeight = 0.20
+	LocaleScriptWeight = 0.10
 )
+
+// LocaleUK is the default market. An unrecognised locale applies no bias.
+const LocaleUK = "uk"
+
+// ukrainianSources sell into the Ukrainian market, so their rows carry
+// Ukrainian names and local package sizes.
+var ukrainianSources = []string{"fora", "zakaz", "curated", "user"}
+
+// localeBias ranks how well a row suits the requested locale. The placeholder
+// numbers differ between the two search branches, so they are passed in rather
+// than hardcoded; getting them wrong collides with the affinity weights.
+func localeBias(localeParam, sourcesParam int) string {
+	return fmt.Sprintf(`
+	case
+		when $%d <> '%s' then 0
+		when f.source_id = any($%d) then %g
+		when f.name ~ '[іїєґІЇЄҐ]' then %g
+		else 0
+	end`, localeParam, LocaleUK, sourcesParam, LocaleSourceWeight, LocaleScriptWeight)
+}
 
 // affinityBonus is the additive ranking bonus on the 0..1 similarity scale.
 // It is capped at AffinityWeight, so history nudges ties but cannot lift a
@@ -47,7 +76,10 @@ const bonusSQL = `coalesce(
 			* exp(-extract(epoch from now() - h.last_logged) / 86400 / $6::float8)),
 	0)`
 
+// SearchParams carries one search. Locale biases ranking toward a market and
+// never filters; an empty value means Ukrainian.
 type SearchParams struct {
+	Locale string
 	Query  string
 	UserID *int64
 	Limit  int
@@ -118,6 +150,14 @@ func (r *FoodRepo) GetByBarcode(ctx context.Context, barcode string) (domain.Foo
 	return f, nil
 }
 
+// localeOrDefault treats an empty locale as the Ukrainian default.
+func (p SearchParams) localeOrDefault() string {
+	if p.Locale == "" {
+		return LocaleUK
+	}
+	return p.Locale
+}
+
 func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, error) {
 	var (
 		rows pgx.Rows
@@ -126,17 +166,18 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 	if p.UserID == nil || *p.UserID == 0 {
 		rows, err = r.pool.Query(ctx, `
 			select `+foodColumns+`, max(greatest(similarity(fa.norm, $1), strict_word_similarity($1, fa.norm))) as score,
-				max(similarity(fa.norm, $1)) as tightness, 0::float8 as bonus
+				max(similarity(fa.norm, $1)) as tightness, 0::float8 as bonus,
+				max(`+localeBias(4, 5)+`) as locale_bias
 			from food_aliases fa
 			join foods f on f.id = fa.food_id
 			where (fa.norm % $1 or $1 <<% fa.norm)
 				and f.owner_user_id is null
 			group by f.id
-			order by score desc,
+			order by score + locale_bias desc,
 				tightness desc,
 				f.confidence desc,
 				f.id
-			limit $2 offset $3`, p.Query, p.Limit, p.Offset)
+			limit $2 offset $3`, p.Query, p.Limit, p.Offset, p.localeOrDefault(), ukrainianSources)
 	} else {
 		rows, err = r.pool.Query(ctx, `
 			with history as (
@@ -148,7 +189,8 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 			select * from (
 				select `+foodColumns+`, max(greatest(similarity(fa.norm, $1), strict_word_similarity($1, fa.norm))) as score,
 					max(similarity(fa.norm, $1)) as tightness,
-					`+bonusSQL+` as bonus
+					`+bonusSQL+` as bonus,
+					max(`+localeBias(9, 10)+`) as locale_bias
 				from food_aliases fa
 				join foods f on f.id = fa.food_id
 				left join history h on h.food_id = f.id
@@ -156,13 +198,14 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 					and (f.owner_user_id is null or f.owner_user_id = $2)
 				group by f.id, h.logs, h.last_logged
 			) ranked
-			order by score + bonus desc,
+			order by score + bonus + locale_bias desc,
 				tightness desc,
 				case when owner_user_id = $2 then 1 else 0 end desc,
 				confidence desc,
 				id
 			limit $3 offset $8`, p.Query, *p.UserID, p.Limit,
-			float64(AffinityWeight), float64(FamiliarAtLogs), float64(RecencyHalfLifeDays), float64(RecencyFloor), p.Offset)
+			float64(AffinityWeight), float64(FamiliarAtLogs), float64(RecencyHalfLifeDays), float64(RecencyFloor), p.Offset,
+			p.localeOrDefault(), ukrainianSources)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("search foods: %w", err)
@@ -272,15 +315,15 @@ func scanFood(row pgx.Row) (domain.Food, error) {
 
 func scanFoodWithScore(row pgx.Row) (Candidate, error) {
 	var candidate Candidate
-	// tightness only orders the results; callers never see it.
-	var tightness float64
+	// tightness and localeBias only order the results; callers never see them.
+	var tightness, localeBias float64
 	f := &candidate.Food
 	err := row.Scan(
 		&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
 		&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
 		&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
 		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
-		&candidate.Score, &tightness, &candidate.Bonus,
+		&candidate.Score, &tightness, &candidate.Bonus, &localeBias,
 	)
 	return candidate, err
 }

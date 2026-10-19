@@ -101,6 +101,7 @@ func (s *Server) searchFoods(c *gin.Context) {
 	started := time.Now()
 	found, err := s.foods.Search(c.Request.Context(), postgres.SearchParams{
 		Query:  resolver.Normalize(c.Query("q")),
+		Locale: c.Query("locale"),
 		UserID: &userID,
 		Limit:  limit,
 		Offset: offset,
