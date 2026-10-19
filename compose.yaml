@@ -1,37 +1,68 @@
+# Local development only. Production runs on Kubernetes (manifests not written yet).
 x-calbot: &calbot
-  image: ghcr.io/arvlas/calbot:e39ea9306ef8d52cd5cfd377aa1e9888b39046cb
   build:
     context: .
-    target: production
+    target: dev
   env_file:
     - .env
-  user: "65532:65532"
-  read_only: true
-  tmpfs:
-    - /tmp:rw,noexec,nosuid,size=1g,uid=65532,gid=65532,mode=1777
-  cap_drop:
-    - ALL
+  environment:
+    # Writable cache locations survive rebuilds in named volumes.
+    GOCACHE: /go-cache/build
+    GOMODCACHE: /go-cache/mod
+  volumes:
+    - .:/app:ro
+    - go_cache:/go-cache
   restart: unless-stopped
 
 services:
   api:
     <<: *calbot
-    command: ["api"]
-    expose:
-      - "8080"
+    command:
+      - air
+      - --build.cmd
+      - go build -buildvcs=false -o /tmp/air/calbot ./cmd/calbot
+      - --build.entrypoint
+      - /tmp/air/calbot
+      - --tmp_dir
+      - /tmp/air
+      - --
+      - api
+    ports:
+      - "${API_PORT:-8080}:8080"
     healthcheck:
-      test: ["CMD", "/calbot", "health"]
+      test: ["CMD", "/tmp/air/calbot", "health"]
       interval: 30s
       timeout: 5s
       retries: 3
-      start_period: 10s
+      # The first start compiles before it can serve.
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
 
   scheduler:
     <<: *calbot
-    command: ["scheduler"]
+    command:
+      - air
+      - --build.cmd
+      - go build -buildvcs=false -o /tmp/air/calbot ./cmd/calbot
+      - --build.entrypoint
+      - /tmp/air/calbot
+      - --tmp_dir
+      - /tmp/air
+      - --
+      - scheduler
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # One-off commands: migrate, seed, ingest, user, token.
+  # Not started by `up`; run it with `docker compose run --rm cli <args>`.
+  cli:
+    <<: *calbot
+    profiles: ["cli"]
+    restart: "no"
+    entrypoint: ["go", "run", "-buildvcs=false", "./cmd/calbot"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -43,14 +74,9 @@ services:
     environment:
       POSTGRES_DB: postgres
       POSTGRES_USER: postgres
-    user: postgres
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=64m,mode=1777
-      - /var/run/postgresql:rw,noexec,nosuid,size=16m,mode=1777
-    cap_drop:
-      - ALL
     restart: unless-stopped
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/001-calbot.sql:ro
@@ -61,39 +87,6 @@ services:
       retries: 5
       start_period: 10s
 
-  caddy:
-    image: caddy:2-alpine
-    env_file:
-      - .env
-    read_only: true
-    tmpfs:
-      - /tmp:rw,noexec,nosuid,size=16m,mode=1777
-    cap_drop:
-      - ALL
-    # The caddy binary carries cap_net_bind_service as a file capability, and
-    # exec fails outright when the bounding set does not include it.
-    cap_add:
-      - NET_BIND_SERVICE
-    restart: unless-stopped
-    ports:
-      - "80:8080"
-      - "443:8443"
-      - "443:8443/udp"
-    volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    depends_on:
-      api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-
 volumes:
   postgres_data:
-  caddy_data:
-  caddy_config:
+  go_cache:

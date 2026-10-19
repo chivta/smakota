@@ -10,6 +10,11 @@ Client-shaped work does not belong here.
 
 Go, Postgres, Gin, zerolog, pgx, tern.
 
+`compose.yaml` is local development only: `make dev` runs the Dockerfile `dev`
+stage with the repo bind-mounted and air hot-reloading, and publishes the API on
+:8080 and Postgres on :5432. Production is Kubernetes, not yet written; CD only
+builds and pushes the `production` image tagged with the commit SHA.
+
 ## Rules this repo will not survive without
 
 **`license_class` is load-bearing.** Tier 2 sources (Сільпо, Zakaz.ua, Varus,
@@ -51,7 +56,7 @@ priority list.
     internal/domain     entities, sentinel errors, the confidence ladder
     internal/config     every setting, validated at startup
     internal/storage    pgxpool, per-entity repos, embedded migrations
-    internal/resolver   query normalization, quantity parsing, candidate ranking
+    internal/resolver   query normalization shared by catalogue writes and search
     internal/ingest     pipeline framework and one package per source
     internal/api        Gin handlers and the OpenAPI spec served at /docs
     internal/seed       the curated catalogue, embedded in the binary

@@ -1,7 +1,7 @@
-.PHONY: dev build test lint migrate seed ingest
+.PHONY: dev build test lint migrate seed ingest token user
 
 dev:
-	docker compose -f compose.yaml -f compose.dev.yaml up --build
+	docker compose up --build
 
 build:
 	docker build --target production -t calbot:local .
@@ -13,10 +13,17 @@ lint:
 	golangci-lint run
 
 migrate:
-	docker compose run --rm api migrate
+	docker compose run --rm cli migrate
 
 seed:
-	docker compose run --rm api seed
+	docker compose run --rm cli seed
 
 ingest:
-	docker compose run --rm api ingest $(SOURCE)
+	docker compose run --rm cli ingest $(SOURCE)
+
+# Issue an API token, printed once. Usage: make token USER=1
+token:
+	docker compose run --rm cli token issue $(USER)
+
+user:
+	docker compose run --rm cli user create

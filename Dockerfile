@@ -5,7 +5,7 @@ RUN apk add --no-cache ca-certificates git \
 
 WORKDIR /app
 
-CMD ["air", "--build.cmd", "go build -o /tmp/air/calbot ./cmd/calbot", "--build.entrypoint", "/tmp/air/calbot", "--tmp_dir", "/tmp/air", "--", "api"]
+CMD ["air", "--build.cmd", "go build -buildvcs=false -o /tmp/air/calbot ./cmd/calbot", "--build.entrypoint", "/tmp/air/calbot", "--tmp_dir", "/tmp/air", "--", "api"]
 
 
 FROM golang:1.27.0-alpine AS builder
