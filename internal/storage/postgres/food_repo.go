@@ -54,7 +54,14 @@ type SearchParams struct {
 	Offset int
 }
 
-// Candidate is one match. Score is the trigram similarity; Bonus is the
+// Plain similarity divides by the candidate's length, so a short query such as
+// "ріс" scores below the threshold against "ріс білій сухій" and returns
+// nothing. strict_word_similarity compares the query against word-bounded
+// substrings instead, which finds the word however long the rest of the name
+// is. Taking the greater of the two keeps full-phrase matches ranked first,
+// and both operators read the same trigram index.
+
+// Candidate is one match. Score is the lexical match strength; Bonus is the
 // caller's history affinity added on top of it when ranking.
 type Candidate struct {
 	Food  domain.Food `json:"food"`
@@ -116,13 +123,15 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 	)
 	if p.UserID == nil || *p.UserID == 0 {
 		rows, err = r.pool.Query(ctx, `
-			select `+foodColumns+`, max(similarity(fa.norm, $1)) as score, 0::float8 as bonus
+			select `+foodColumns+`, max(greatest(similarity(fa.norm, $1), strict_word_similarity($1, fa.norm))) as score,
+				max(similarity(fa.norm, $1)) as tightness, 0::float8 as bonus
 			from food_aliases fa
 			join foods f on f.id = fa.food_id
-			where fa.norm % $1
+			where (fa.norm % $1 or $1 <<% fa.norm)
 				and f.owner_user_id is null
 			group by f.id
 			order by score desc,
+				tightness desc,
 				f.confidence desc,
 				f.id
 			limit $2 offset $3`, p.Query, p.Limit, p.Offset)
@@ -135,16 +144,18 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 				group by food_id
 			)
 			select * from (
-				select `+foodColumns+`, max(similarity(fa.norm, $1)) as score,
+				select `+foodColumns+`, max(greatest(similarity(fa.norm, $1), strict_word_similarity($1, fa.norm))) as score,
+					max(similarity(fa.norm, $1)) as tightness,
 					`+bonusSQL+` as bonus
 				from food_aliases fa
 				join foods f on f.id = fa.food_id
 				left join history h on h.food_id = f.id
-				where fa.norm % $1
+				where (fa.norm % $1 or $1 <<% fa.norm)
 					and (f.owner_user_id is null or f.owner_user_id = $2)
 				group by f.id, h.logs, h.last_logged
 			) ranked
 			order by score + bonus desc,
+				tightness desc,
 				case when owner_user_id = $2 then 1 else 0 end desc,
 				confidence desc,
 				id
@@ -259,13 +270,15 @@ func scanFood(row pgx.Row) (domain.Food, error) {
 
 func scanFoodWithScore(row pgx.Row) (Candidate, error) {
 	var candidate Candidate
+	// tightness only orders the results; callers never see it.
+	var tightness float64
 	f := &candidate.Food
 	err := row.Scan(
 		&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
 		&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
 		&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
 		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
-		&candidate.Score, &candidate.Bonus,
+		&candidate.Score, &tightness, &candidate.Bonus,
 	)
 	return candidate, err
 }
