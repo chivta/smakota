@@ -11,6 +11,7 @@ import (
 	"github.com/arvlas/calbot/internal/config"
 	"github.com/arvlas/calbot/internal/ingest"
 	"github.com/arvlas/calbot/internal/ingest/fora"
+	"github.com/arvlas/calbot/internal/ingest/mcdonalds"
 	"github.com/arvlas/calbot/internal/ingest/off"
 	"github.com/arvlas/calbot/internal/ingest/proe"
 	"github.com/arvlas/calbot/internal/ingest/silpo"
@@ -72,6 +73,7 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		fora.New(httpClient, cfg.ForaFilialIDs),
 		proe.New(httpClient, cfg.ProeBaseURL),
 		usda.New(httpClient, cfg.USDAAPIKey, cfg.USDAQueries),
+		mcdonalds.New(httpClient, cfg.McDonaldsPDFURL),
 	)
 	if err == nil {
 		err = registry.Register(offDeltaJob, off.NewDelta(httpClient))

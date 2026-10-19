@@ -26,6 +26,7 @@ type Config struct {
 	// rejection reason; the rest are only counted.
 	IngestRejectCap int    `env:"INGEST_REJECT_CAP" envDefault:"50"          validate:"min=0"`
 	OFFDumpURL      string `env:"OFF_DUMP_URL"      envDefault:"https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz" validate:"required,url"`
+	McDonaldsPDFURL string `env:"MCDONALDS_PDF_URL" envDefault:"https://ukraine.mcdonalds.ua/static/restaurants/consist.pdf" validate:"required,url"`
 
 	// ZakazStoreIDs is one store per chain: Novus, Auchan, Таврія В, Космос,
 	// Megamarket, ЕКО маркет. Each chain's kitchen publishes nutrition for its

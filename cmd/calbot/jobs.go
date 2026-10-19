@@ -21,8 +21,9 @@ const (
 	zakazTimeout    = 4 * time.Hour
 	dumpTimeout     = 6 * time.Hour
 	quickJobTimeout = 5 * time.Minute
+	daysPerWeek     = 7
 	// allIngestTimeout covers every adapter running back to back.
-	allIngestTimeout = dumpTimeout + zakazTimeout + 4*crawlTimeout
+	allIngestTimeout = dumpTimeout + zakazTimeout + 5*crawlTimeout
 )
 
 // Job names for the two OFF modes. The registry and the schedule both use them.
@@ -30,6 +31,15 @@ const (
 	offDeltaJob = "off-delta"
 	offFullJob  = "off-full"
 )
+
+// firstSaturday fires on the first Saturday of the month. The menu PDF changes
+// rarely, and Saturday is the one day no other crawl uses.
+func firstSaturday(hour, minute int) func(time.Time) bool {
+	weekly := scheduler.Weekly(time.Saturday, hour, minute)
+	return func(t time.Time) bool {
+		return weekly(t) && t.Day() <= daysPerWeek
+	}
+}
 
 func runScheduler(ctx context.Context, cfg config.Config) error {
 	c, err := build(ctx, cfg)
@@ -73,6 +83,7 @@ func (c *container) jobs() []scheduler.Job {
 		ingestJob("proe", scheduler.Weekly(time.Wednesday, 2, 0), crawlTimeout),
 		ingestJob("usda", scheduler.Weekly(time.Thursday, 2, 0), crawlTimeout),
 		ingestJob("fora", scheduler.Weekly(time.Friday, 2, 0), crawlTimeout),
+		ingestJob("mcdonalds", firstSaturday(2, 0), crawlTimeout),
 		{
 			Name:    "ingest-all",
 			Due:     scheduler.Never(),
