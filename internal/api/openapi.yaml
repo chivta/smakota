@@ -16,10 +16,10 @@ info:
     Errors carry a machine-readable `code` and never a human message. Clients
     map a code to text in their own translation map.
 servers:
-  - url: http://localhost
-    description: Local development stack
-  - url: http://localhost:8080
-    description: The api service inside the compose network
+  # Relative, so the docs page calls whatever host and port it was served from.
+  # A fixed localhost URL breaks as soon as the published port is not 80.
+  - url: /
+    description: This server
 
 tags:
   - name: user
