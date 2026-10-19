@@ -82,6 +82,9 @@ func (s *Server) Router(production bool) *gin.Engine {
 	r.GET("/health", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))
 	s.registerDocs(r)
+	if !production {
+		s.registerDevUI(r)
+	}
 
 	v1 := r.Group("/v1", s.auth())
 	{

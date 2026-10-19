@@ -18,7 +18,7 @@ const userIDKey = "user_id"
 func observability() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		path := c.Request.URL.Path
-		if path == "/health" || path == "/metrics" || strings.HasPrefix(path, "/docs") {
+		if path == "/health" || path == "/metrics" || strings.HasPrefix(path, "/docs") || path == "/dev" {
 			c.Next()
 			return
 		}

@@ -16,6 +16,7 @@ import (
 	"github.com/arvlas/calbot/internal/ingest/usda"
 	"github.com/arvlas/calbot/internal/ingest/zakaz"
 	"github.com/arvlas/calbot/internal/metrics"
+	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/rs/zerolog/log"
@@ -58,8 +59,8 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		return nil, fmt.Errorf("connect database: %w", err)
 	}
 
-	foods := postgres.NewFoodRepo(pool)
-	ingests := postgres.NewIngestRepo(pool)
+	foods := postgres.NewFoodRepo(pool, resolver.Normalize)
+	ingests := postgres.NewIngestRepo(pool, resolver.Normalize)
 
 	httpClient := ingest.NewHTTPClient(nil, cfg.IngestUserAgent)
 	// The dump download outlasts the default client's whole-request timeout.

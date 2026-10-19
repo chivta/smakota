@@ -44,6 +44,8 @@ type PromoteResult struct {
 
 type IngestRepo struct {
 	pool *pgxpool.Pool
+	// normalize must be the function the resolver applies to a user's query.
+	normalize func(string) string
 }
 
 type normalizedFood struct {
@@ -64,8 +66,8 @@ type normalizedFood struct {
 	Aliases      []domain.Alias      `json:"aliases"`
 }
 
-func NewIngestRepo(pool *pgxpool.Pool) *IngestRepo {
-	return &IngestRepo{pool: pool}
+func NewIngestRepo(pool *pgxpool.Pool, normalize func(string) string) *IngestRepo {
+	return &IngestRepo{pool: pool, normalize: normalize}
 }
 
 func (r *IngestRepo) StartRun(ctx context.Context, source string) (int64, error) {
@@ -290,7 +292,7 @@ func (r *IngestRepo) PromoteBatch(ctx context.Context, items []StagedItem) ([]Pr
 		promoted = append(promoted, f)
 	}
 
-	err = replaceFoodDetailsBatch(ctx, tx, promoted)
+	err = replaceFoodDetailsBatch(ctx, tx, promoted, r.normalize)
 	if err != nil {
 		return nil, fmt.Errorf("replace promoted food details: %w", err)
 	}

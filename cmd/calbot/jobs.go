@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/arvlas/calbot/internal/config"
 	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/scheduler"
 	"github.com/arvlas/calbot/internal/seed"
+	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/rs/zerolog/log"
 )
 
@@ -115,5 +117,42 @@ func runSeed(ctx context.Context, cfg config.Config) error {
 	}
 
 	log.Info().Int("entries", len(foods)).Int("written", inserted).Msg("catalogue seeded")
+	return nil
+}
+
+// reindexBatchSize is how many alias rows one reindex transaction covers.
+const reindexBatchSize = 10000
+
+// runReindexAliases rewrites stored alias norms with the resolver's normalizer.
+// An optional AFTER_ID resumes from the last ID a previous run logged.
+func runReindexAliases(ctx context.Context, cfg config.Config, args []string) error {
+	var afterID int64
+	if len(args) > 1 {
+		return usage()
+	}
+	if len(args) == 1 {
+		var err error
+		afterID, err = strconv.ParseInt(args[0], 10, 64)
+		if err != nil {
+			return fmt.Errorf("parse after id %q: %w", args[0], err)
+		}
+	}
+
+	c, err := build(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer c.close()
+
+	total, err := c.foods.ReindexAliases(ctx, afterID, reindexBatchSize, func(p postgres.ReindexProgress) {
+		log.Info().Int64("last_id", p.LastID).Int("scanned", p.Scanned).
+			Int("rewritten", p.Rewritten).Int("removed", p.Removed).Msg("aliases reindexed")
+	})
+	if err != nil {
+		return fmt.Errorf("reindex aliases after id %d: %w", total.LastID, err)
+	}
+
+	log.Info().Int64("last_id", total.LastID).Int("scanned", total.Scanned).
+		Int("rewritten", total.Rewritten).Int("removed", total.Removed).Msg("alias reindex done")
 	return nil
 }

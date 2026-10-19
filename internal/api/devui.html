@@ -1,0 +1,357 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>calbot dev</title>
+<style>
+  :root {
+    --bg:#fbfaf8; --panel:#fff; --ink:#1b1a17; --muted:#6d6862; --rule:#e3dfd8;
+    --accent:#7a4a1e; --good:#3f6b43; --bad:#9b3b32;
+    --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+    color-scheme:light;
+  }
+  @media (prefers-color-scheme:dark){:root{
+    --bg:#15140f; --panel:#1d1c17; --ink:#eae6de; --muted:#9a948a; --rule:#302d26;
+    --accent:#d59a63; --good:#7fb183; --bad:#e08a80; color-scheme:dark;}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:15px/1.5 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;padding:0 14px}
+  main{max-width:860px;margin:0 auto;padding:22px 0 70px}
+  h1{font-size:20px;margin:0 0 3px;letter-spacing:-.01em}
+  .sub{color:var(--muted);font-size:13px;margin:0 0 20px}
+  h2{font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);
+    margin:26px 0 9px;font-weight:600}
+  .card{background:var(--panel);border:1px solid var(--rule);border-radius:9px;padding:14px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .row>*{min-width:0}
+  input,button,select{font:inherit;border-radius:6px;border:1px solid var(--rule);
+    padding:8px 10px;background:var(--bg);color:var(--ink)}
+  input[type=number]{width:92px}
+  button{background:var(--accent);color:var(--bg);border-color:var(--accent);cursor:pointer;font-weight:550}
+  button.ghost{background:none;color:var(--muted);border-color:var(--rule);font-weight:400}
+  button:disabled{opacity:.45;cursor:default}
+  .grow{flex:1 1 180px}
+  .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .hint{color:var(--muted);font-size:12.5px;margin:7px 0 0}
+  ul{list-style:none;margin:0;padding:0}
+  li{border-bottom:1px solid var(--rule);padding:10px 0}
+  li:last-child{border-bottom:0}
+  .hit{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .hit .nm{flex:1 1 200px;min-width:0}
+  .hit .sc{font-family:var(--mono);font-size:12px;color:var(--muted);flex:none}
+  .tag{font-family:var(--mono);font-size:11px;padding:1px 6px;border-radius:9px;
+    border:1px solid var(--rule);color:var(--muted)}
+  .ent{display:flex;gap:10px;align-items:baseline;flex-wrap:wrap}
+  .ent .nm{flex:1 1 170px;min-width:0}
+  .totals{display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);
+    padding:11px 0 0;margin-top:6px;border-top:2px solid var(--ink)}
+  .totals b{font-size:17px}
+  .totals span{display:block;font-size:11px;color:var(--muted);font-family:ui-sans-serif,system-ui,sans-serif}
+  #msg{margin:12px 0 0;font-size:13px;min-height:19px}
+  #msg.ok{color:var(--good)} #msg.err{color:var(--bad)}
+  .empty{color:var(--muted);font-size:13.5px;padding:8px 0}
+</style>
+</head>
+<body>
+<main>
+  <h1>calbot dev console</h1>
+  <p class="sub">Throwaway UI for exercising the API by hand. Served by the API itself, so it needs no CORS.</p>
+
+  <div class="card">
+    <div class="row">
+      <input id="base" class="grow" placeholder="http://localhost:18080" autocomplete="off">
+      <input id="token" class="grow" placeholder="bearer token — make token USER=1" autocomplete="off">
+      <button id="connect">Connect</button>
+    </div>
+    <p class="hint" id="who">Not connected. The token identifies the user; there is no user id to enter.</p>
+  </div>
+
+  <p id="msg"></p>
+
+  <h2>Search the catalogue</h2>
+  <div class="card">
+    <div class="row">
+      <input id="q" class="grow" placeholder="молоко, рис, куряче філе, snickers…" autocomplete="off">
+      <input id="qlimit" type="number" value="8" min="1" max="50" title="limit">
+      <button id="search">Search</button>
+    </div>
+    <ul id="hits"></ul>
+  </div>
+
+  <h2>Log a food the catalogue doesn't have</h2>
+  <div class="card">
+    <div class="row">
+      <input id="cname" class="grow" placeholder="мамина запіканка" autocomplete="off">
+      <input id="cgrams" type="number" placeholder="g" value="250">
+    </div>
+    <div class="row" style="margin-top:8px">
+      <input id="ckcal" type="number" placeholder="kcal">
+      <input id="cprot" type="number" placeholder="protein">
+      <input id="cfat" type="number" placeholder="fat">
+      <input id="ccarb" type="number" placeholder="carbs">
+      <button id="addCustom">Log it</button>
+    </div>
+    <p class="hint">Per 100 g values. Creates no catalogue row — the numbers live on the entry.</p>
+  </div>
+
+  <h2>What I logged</h2>
+  <div class="card">
+    <div class="row">
+      <input id="from" type="date"> <span class="hint">to</span> <input id="to" type="date">
+      <button id="reload" class="ghost">Reload</button>
+    </div>
+    <ul id="entries" style="margin-top:6px"></ul>
+    <div class="totals" id="totals" hidden>
+      <div><b id="tk">0</b><span>kcal</span></div>
+      <div><b id="tp">0</b><span>protein g</span></div>
+      <div><b id="tf">0</b><span>fat g</span></div>
+      <div><b id="tc">0</b><span>carbs g</span></div>
+      <div><b id="tn">0</b><span>entries</span></div>
+    </div>
+  </div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const store = {
+  get(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, v); } catch (e) {} },
+};
+
+$("base").value = store.get("calbot.base", location.origin);
+$("token").value = store.get("calbot.token", "");
+const today = new Date().toISOString().slice(0, 10);
+$("from").value = today;
+$("to").value = today;
+
+function say(text, kind) {
+  const el = $("msg");
+  el.textContent = text;
+  el.className = kind || "";
+  if (kind === "ok") setTimeout(() => { if (el.textContent === text) { el.textContent = ""; el.className = ""; } }, 3500);
+}
+
+async function api(path, options) {
+  const base = $("base").value.replace(/\/+$/, "");
+  const token = $("token").value.trim();
+  if (!token) throw new Error("no token — paste one and press Connect");
+  const res = await fetch(base + path, {
+    ...options,
+    headers: {
+      "Authorization": "Bearer " + token,
+      ...(options && options.body ? { "Content-Type": "application/json" } : {}),
+    },
+  });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  let body = null;
+  try { body = text ? JSON.parse(text) : null; } catch (e) { body = text; }
+  if (!res.ok) {
+    const code = body && body.code ? body.code : res.status;
+    throw new Error(code + " on " + path);
+  }
+  return body;
+}
+
+const num = (v) => (v === "" || v == null ? 0 : Number(v));
+const round = (v) => Math.round(Number(v) || 0);
+
+$("connect").addEventListener("click", async () => {
+  store.set("calbot.base", $("base").value);
+  store.set("calbot.token", $("token").value.trim());
+  try {
+    const me = await api("/v1/me");
+    const target = me.kcal_target ? `target ${me.kcal_target} kcal, ${me.protein_target_g} g protein` : "no target set";
+    $("who").textContent = `Connected as user ${me.id} — ${target}`;
+    say("Connected.", "ok");
+    loadEntries();
+  } catch (e) {
+    $("who").textContent = "Not connected.";
+    say(e.message, "err");
+  }
+});
+
+async function search() {
+  const q = $("q").value.trim();
+  const list = $("hits");
+  if (!q) { list.innerHTML = ""; return; }
+  try {
+    const hits = await api(`/v1/foods?q=${encodeURIComponent(q)}&limit=${num($("qlimit").value) || 8}`);
+    if (!hits.length) { list.innerHTML = '<li class="empty">Nothing matched.</li>'; return; }
+    list.innerHTML = "";
+    for (const hit of hits) list.appendChild(hitRow(hit));
+  } catch (e) { say(e.message, "err"); }
+}
+
+function hitRow(hit) {
+  const f = hit.food;
+  const li = document.createElement("li");
+  const wrap = document.createElement("div");
+  wrap.className = "hit";
+
+  const nm = document.createElement("div");
+  nm.className = "nm";
+  const title = document.createElement("div");
+  title.textContent = f.name + (f.brand ? ` · ${f.brand}` : "");
+  const meta = document.createElement("div");
+  meta.className = "hint";
+  meta.textContent = `${round(f.nutrition.kcal)} kcal / 100 g · P${f.nutrition.protein} F${f.nutrition.fat} C${f.nutrition.carbs} · ${f.source_id}`;
+  nm.append(title, meta);
+
+  const sc = document.createElement("div");
+  sc.className = "sc";
+  sc.textContent = hit.bonus > 0 ? `${hit.score.toFixed(2)} +${hit.bonus.toFixed(2)}` : hit.score.toFixed(2);
+  if (hit.bonus > 0) sc.title = "includes your history bonus";
+
+  const grams = document.createElement("input");
+  grams.type = "number";
+  const def = (f.portions || []).find((p) => p.is_default) || (f.portions || [])[0];
+  grams.value = def ? round(def.grams) : 100;
+
+  const log = document.createElement("button");
+  log.textContent = "Log";
+  log.addEventListener("click", async () => {
+    log.disabled = true;
+    try {
+      const saved = await api("/v1/entries", {
+        method: "POST",
+        body: JSON.stringify({ food_id: f.id, grams: num(grams.value) }),
+      });
+      say(`Logged ${saved.food_name} — ${round(saved.nutrition.kcal)} kcal.`, "ok");
+      loadEntries();
+    } catch (e) { say(e.message, "err"); }
+    log.disabled = false;
+  });
+
+  wrap.append(nm, sc, grams, log);
+  li.appendChild(wrap);
+
+  if ((f.portions || []).length) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.style.marginTop = "7px";
+    for (const p of f.portions) {
+      const b = document.createElement("button");
+      b.className = "ghost";
+      b.textContent = `${p.name} · ${round(p.grams)} g`;
+      b.addEventListener("click", () => { grams.value = round(p.grams); });
+      row.appendChild(b);
+    }
+    li.appendChild(row);
+  }
+  return li;
+}
+
+$("search").addEventListener("click", search);
+$("q").addEventListener("keydown", (e) => { if (e.key === "Enter") search(); });
+
+$("addCustom").addEventListener("click", async () => {
+  const name = $("cname").value.trim();
+  if (!name) { say("Give the food a name.", "err"); return; }
+  try {
+    const saved = await api("/v1/entries", {
+      method: "POST",
+      body: JSON.stringify({
+        name,
+        grams: num($("cgrams").value) || 100,
+        nutrition: {
+          kcal: num($("ckcal").value),
+          protein: num($("cprot").value),
+          fat: num($("cfat").value),
+          carbs: num($("ccarb").value),
+        },
+      }),
+    });
+    say(`Logged ${saved.food_name} — ${round(saved.nutrition.kcal)} kcal, no catalogue row.`, "ok");
+    $("cname").value = "";
+    loadEntries();
+  } catch (e) { say(e.message, "err"); }
+});
+
+async function loadEntries() {
+  const list = $("entries");
+  try {
+    const rows = await api(`/v1/entries?from=${$("from").value}&to=${$("to").value}&limit=100`);
+    list.innerHTML = "";
+    if (!rows.length) {
+      list.innerHTML = '<li class="empty">Nothing logged in this range.</li>';
+      $("totals").hidden = true;
+      return;
+    }
+    const sum = { kcal: 0, protein: 0, fat: 0, carbs: 0 };
+    for (const e of rows) {
+      for (const k of Object.keys(sum)) sum[k] += Number(e.nutrition[k]) || 0;
+      list.appendChild(entryRow(e));
+    }
+    $("tk").textContent = round(sum.kcal);
+    $("tp").textContent = round(sum.protein);
+    $("tf").textContent = round(sum.fat);
+    $("tc").textContent = round(sum.carbs);
+    $("tn").textContent = rows.length;
+    $("totals").hidden = false;
+  } catch (e) { say(e.message, "err"); }
+}
+
+function entryRow(e) {
+  const li = document.createElement("li");
+  const wrap = document.createElement("div");
+  wrap.className = "ent";
+
+  const nm = document.createElement("div");
+  nm.className = "nm";
+  const title = document.createElement("div");
+  title.textContent = e.food_name;
+  const meta = document.createElement("div");
+  meta.className = "hint";
+  const when = new Date(e.logged_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  meta.textContent = `${when} · P${round(e.nutrition.protein)} F${round(e.nutrition.fat)} C${round(e.nutrition.carbs)}`;
+  nm.append(title, meta);
+
+  const tag = document.createElement("span");
+  tag.className = "tag";
+  tag.textContent = e.food_id == null ? "custom" : "#" + e.food_id;
+
+  const kcal = document.createElement("div");
+  kcal.className = "mono";
+  kcal.style.flex = "none";
+  kcal.textContent = round(e.nutrition.kcal) + " kcal";
+
+  const grams = document.createElement("input");
+  grams.type = "number";
+  grams.value = round(e.grams);
+
+  const save = document.createElement("button");
+  save.className = "ghost";
+  save.textContent = "Save";
+  save.addEventListener("click", async () => {
+    try {
+      await api(`/v1/entries/${e.id}`, { method: "PATCH", body: JSON.stringify({ grams: num(grams.value) }) });
+      say("Updated.", "ok");
+      loadEntries();
+    } catch (err) { say(err.message, "err"); }
+  });
+
+  const del = document.createElement("button");
+  del.className = "ghost";
+  del.textContent = "Delete";
+  del.addEventListener("click", async () => {
+    try {
+      await api(`/v1/entries/${e.id}`, { method: "DELETE" });
+      say("Deleted.", "ok");
+      loadEntries();
+    } catch (err) { say(err.message, "err"); }
+  });
+
+  wrap.append(nm, tag, kcal, grams, save, del);
+  li.appendChild(wrap);
+  return li;
+}
+
+$("reload").addEventListener("click", loadEntries);
+for (const id of ["from", "to"]) $(id).addEventListener("change", loadEntries);
+
+if ($("token").value.trim()) $("connect").click();
+</script>
+</body>
+</html>

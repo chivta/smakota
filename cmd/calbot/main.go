@@ -1,5 +1,5 @@
 // Command calbot is the single binary behind every process in the deployment.
-// The subcommand picks the role: api, scheduler, ingest <name>, seed, or the user and token commands.
+// The subcommand picks the role: api, scheduler, ingest <name>, seed, reindex-aliases, or the user and token commands.
 package main
 
 import (
@@ -52,6 +52,8 @@ func run(ctx context.Context, cfg config.Config, args []string) error {
 		return runIngest(ctx, cfg, args[1])
 	case "seed":
 		return runSeed(ctx, cfg)
+	case "reindex-aliases":
+		return runReindexAliases(ctx, cfg, args[1:])
 	case "migrate":
 		return runMigrate(ctx, cfg)
 	case "health":
@@ -66,5 +68,5 @@ func run(ctx context.Context, cfg config.Config, args []string) error {
 }
 
 func usage() error {
-	return fmt.Errorf("usage: calbot <api|scheduler|ingest NAME|seed|migrate|health|user create|token issue USER_ID [NAME]|token revoke TOKEN_ID>")
+	return fmt.Errorf("usage: calbot <api|scheduler|ingest NAME|seed|reindex-aliases [AFTER_ID]|migrate|health|user create|token issue USER_ID [NAME]|token revoke TOKEN_ID>")
 }

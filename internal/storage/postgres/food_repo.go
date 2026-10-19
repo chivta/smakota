@@ -71,10 +71,12 @@ type Candidate struct {
 
 type FoodRepo struct {
 	pool *pgxpool.Pool
+	// normalize must be the function the resolver applies to a user's query.
+	normalize func(string) string
 }
 
-func NewFoodRepo(pool *pgxpool.Pool) *FoodRepo {
-	return &FoodRepo{pool: pool}
+func NewFoodRepo(pool *pgxpool.Pool, normalize func(string) string) *FoodRepo {
+	return &FoodRepo{pool: pool, normalize: normalize}
 }
 
 func (r *FoodRepo) GetByID(ctx context.Context, id int64) (domain.Food, error) {
@@ -220,7 +222,7 @@ func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Fo
 		return domain.Food{}, fmt.Errorf("insert personal food: %w", err)
 	}
 
-	err = replaceFoodDetails(ctx, tx, f)
+	err = replaceFoodDetails(ctx, tx, f, r.normalize)
 	if err != nil {
 		return domain.Food{}, fmt.Errorf("save personal food details: %w", err)
 	}
@@ -283,7 +285,7 @@ func scanFoodWithScore(row pgx.Row) (Candidate, error) {
 	return candidate, err
 }
 
-func replaceFoodDetails(ctx context.Context, tx pgx.Tx, f domain.Food) error {
+func replaceFoodDetails(ctx context.Context, tx pgx.Tx, f domain.Food, normalize func(string) string) error {
 	_, err := tx.Exec(ctx, `delete from food_portions where food_id = $1`, f.ID)
 	if err != nil {
 		return fmt.Errorf("delete food portions: %w", err)
@@ -303,17 +305,17 @@ func replaceFoodDetails(ctx context.Context, tx pgx.Tx, f domain.Food) error {
 	}
 	_, err = tx.Exec(ctx, `
 		insert into food_aliases (food_id, alias, norm, lang)
-		values ($1, $2, lower(unaccent($2)), 'uk')`, f.ID, f.Name)
+		values ($1, $2, $3, 'uk')`, f.ID, f.Name, normalize(f.Name))
 	if err != nil {
 		return fmt.Errorf("insert food name alias: %w", err)
 	}
 	for _, alias := range f.Aliases {
 		_, err = tx.Exec(ctx, `
 			insert into food_aliases (food_id, alias, norm, lang)
-			values ($1, $2, lower(unaccent($2)), $3)
+			values ($1, $2, $3, $4)
 			on conflict (food_id, norm) do update
 			set alias = excluded.alias, lang = excluded.lang`,
-			f.ID, alias.Alias, alias.Lang)
+			f.ID, alias.Alias, normalize(alias.Alias), alias.Lang)
 		if err != nil {
 			return fmt.Errorf("insert food alias: %w", err)
 		}
@@ -324,7 +326,7 @@ func replaceFoodDetails(ctx context.Context, tx pgx.Tx, f domain.Food) error {
 // replaceFoodDetailsBatch is replaceFoodDetails for many foods in a fixed
 // number of statements. Aliases that fold to the same norm collapse to the
 // last one listed, as the row-by-row upsert did.
-func replaceFoodDetailsBatch(ctx context.Context, tx pgx.Tx, foods []domain.Food) error {
+func replaceFoodDetailsBatch(ctx context.Context, tx pgx.Tx, foods []domain.Food, normalize func(string) string) error {
 	if len(foods) == 0 {
 		return nil
 	}
@@ -333,8 +335,6 @@ func replaceFoodDetailsBatch(ctx context.Context, tx pgx.Tx, foods []domain.Food
 	var portionNames []string
 	var portionGrams []float64
 	var portionDefaults []bool
-	var aliasFoods []int64
-	var aliasTexts, aliasLangs []string
 	for i, f := range foods {
 		foodIDs[i] = f.ID
 		for _, portion := range f.Portions {
@@ -343,15 +343,8 @@ func replaceFoodDetailsBatch(ctx context.Context, tx pgx.Tx, foods []domain.Food
 			portionGrams = append(portionGrams, portion.Grams)
 			portionDefaults = append(portionDefaults, portion.IsDefault)
 		}
-		aliasFoods = append(aliasFoods, f.ID)
-		aliasTexts = append(aliasTexts, f.Name)
-		aliasLangs = append(aliasLangs, "uk")
-		for _, alias := range f.Aliases {
-			aliasFoods = append(aliasFoods, f.ID)
-			aliasTexts = append(aliasTexts, alias.Alias)
-			aliasLangs = append(aliasLangs, alias.Lang)
-		}
 	}
+	aliases := foldAliases(foods, normalize)
 
 	_, err := tx.Exec(ctx, `delete from food_portions where food_id = any($1)`, foodIDs)
 	if err != nil {
@@ -370,14 +363,41 @@ func replaceFoodDetailsBatch(ctx context.Context, tx pgx.Tx, foods []domain.Food
 	}
 	_, err = tx.Exec(ctx, `
 		insert into food_aliases (food_id, alias, norm, lang)
-		select distinct on (food_id, lower(unaccent(alias)))
-			food_id, alias, lower(unaccent(alias)), lang
-		from unnest($1::bigint[], $2::text[], $3::text[]) with ordinality
-			as t(food_id, alias, lang, ord)
-		order by food_id, lower(unaccent(alias)), ord desc`,
-		aliasFoods, aliasTexts, aliasLangs)
+		select * from unnest($1::bigint[], $2::text[], $3::text[], $4::text[])`,
+		aliases.foodIDs, aliases.texts, aliases.norms, aliases.langs)
 	if err != nil {
 		return fmt.Errorf("insert food aliases: %w", err)
 	}
 	return nil
+}
+
+type foldedAliases struct {
+	foodIDs             []int64
+	texts, norms, langs []string
+}
+
+// foldAliases lists every food's name and aliases with their norms. Aliases
+// that fold to the same norm collapse to the last one listed, and ones that
+// fold to nothing are dropped.
+func foldAliases(foods []domain.Food, normalize func(string) string) foldedAliases {
+	var out foldedAliases
+	for _, f := range foods {
+		aliases := append([]domain.Alias{{Alias: f.Name, Lang: "uk"}}, f.Aliases...)
+		last := make(map[string]int, len(aliases))
+		norms := make([]string, len(aliases))
+		for i, a := range aliases {
+			norms[i] = normalize(a.Alias)
+			last[norms[i]] = i
+		}
+		for i, a := range aliases {
+			if norms[i] == "" || last[norms[i]] != i {
+				continue
+			}
+			out.foodIDs = append(out.foodIDs, f.ID)
+			out.texts = append(out.texts, a.Alias)
+			out.norms = append(out.norms, norms[i])
+			out.langs = append(out.langs, a.Lang)
+		}
+	}
+	return out
 }
