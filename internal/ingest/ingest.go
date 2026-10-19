@@ -73,6 +73,13 @@ type Raw struct {
 	Cursor     string
 	Product    RawProduct
 	Checkpoint bool
+
+	// Kind, State and Portions are set by sources that publish prepared dishes
+	// rather than packaged products; Normalize defaults an empty Kind and State
+	// to a product sold as packaged.
+	Kind     domain.Kind
+	State    domain.State
+	Portions []domain.Portion
 }
 
 // Normalized is a product ready for validation and staging.

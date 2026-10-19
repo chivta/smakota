@@ -56,8 +56,16 @@ func Normalize(source string, provenance Provenance, raw Raw) (Normalized, error
 		SourceURL: raw.SourceURL,
 		FetchedAt: &fetchedAt,
 
+		Portions: raw.Portions,
+
 		LicenseClass: provenance.LicenseClass,
 		Confidence:   provenance.Confidence,
+	}
+	if raw.Kind != "" {
+		food.Kind = raw.Kind
+	}
+	if raw.State != "" {
+		food.State = raw.State
 	}
 	return food, nil
 }
