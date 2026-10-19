@@ -4,40 +4,12 @@ import (
 	"context"
 
 	"github.com/arvlas/calbot/internal/ingest"
-	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 )
 
-// The ingest framework and the resolver each declare the storage they need on
-// their own side, so neither imports the repository package. The shapes agree;
-// the named types do not. These two adapters are the seam.
-
-type searchAdapter struct {
-	repo *postgres.FoodRepo
-}
-
-func (a searchAdapter) Search(ctx context.Context, p resolver.SearchParams) ([]resolver.Candidate, error) {
-	var userID *int64
-	if p.UserID != 0 {
-		id := p.UserID
-		userID = &id
-	}
-
-	found, err := a.repo.Search(ctx, postgres.SearchParams{
-		Query:  p.Query,
-		UserID: userID,
-		Limit:  p.Limit,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	out := make([]resolver.Candidate, len(found))
-	for i, c := range found {
-		out[i] = resolver.Candidate{Food: c.Food, Score: c.Score, Bonus: c.Bonus}
-	}
-	return out, nil
-}
+// The ingest framework declares the storage it needs on its own side, so it
+// does not import the repository package. The shapes agree; the named types do
+// not. This adapter is the seam.
 
 type ingestStore struct {
 	repo *postgres.IngestRepo

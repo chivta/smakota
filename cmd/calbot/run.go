@@ -16,11 +16,8 @@ import (
 	"github.com/arvlas/calbot/internal/ingest/usda"
 	"github.com/arvlas/calbot/internal/ingest/zakaz"
 	"github.com/arvlas/calbot/internal/metrics"
-	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/rs/zerolog/log"
 )
 
@@ -47,7 +44,6 @@ type container struct {
 	locker   *postgres.Locker
 	registry *ingest.Registry
 	runner   *ingest.Runner
-	resolver *resolver.Resolver
 }
 
 // build connects to the database, runs migrations, and wires every component.
@@ -90,7 +86,6 @@ func build(ctx context.Context, cfg config.Config) (*container, error) {
 		locker:   postgres.NewLocker(pool),
 		registry: registry,
 		runner:   ingest.NewRunner(ingestStore{repo: ingests}),
-		resolver: resolver.NewResolver(searchAdapter{repo: foods}, resolver.NewLLM(openai.NewClient(option.WithAPIKey(cfg.OpenAIKey)), cfg.OpenAIModel)),
 	}, nil
 }
 
@@ -110,12 +105,11 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 	defer c.close()
 
 	server := api.New(api.Deps{
-		Users:    c.users,
-		Tokens:   c.tokens,
-		Foods:    c.foods,
-		Logs:     c.logs,
-		Reviews:  c.reviews,
-		Resolver: c.resolver,
+		Users:   c.users,
+		Tokens:  c.tokens,
+		Foods:   c.foods,
+		Logs:    c.logs,
+		Reviews: c.reviews,
 	})
 
 	go c.trackIngestAge(ctx)

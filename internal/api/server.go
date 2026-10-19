@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
-	"github.com/arvlas/calbot/internal/resolver"
+	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
@@ -28,6 +28,7 @@ type foodStore interface {
 	GetByID(ctx context.Context, id int64) (domain.Food, error)
 	GetByBarcode(ctx context.Context, barcode string) (domain.Food, error)
 	CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error)
+	Search(ctx context.Context, p postgres.SearchParams) ([]postgres.Candidate, error)
 }
 
 type logStore interface {
@@ -41,37 +42,30 @@ type reviewStore interface {
 	Add(ctx context.Context, item domain.ReviewItem) error
 }
 
-type foodResolver interface {
-	Resolve(ctx context.Context, req resolver.Request) (resolver.Result, error)
-}
-
 // Deps is the wiring surface. main builds it; nothing here reaches for a global.
 type Deps struct {
-	Users    userStore
-	Tokens   tokenStore
-	Foods    foodStore
-	Logs     logStore
-	Reviews  reviewStore
-	Resolver foodResolver
+	Users   userStore
+	Tokens  tokenStore
+	Foods   foodStore
+	Logs    logStore
+	Reviews reviewStore
 }
 
 type Server struct {
-	users    userStore
-	tokens   tokenStore
-	foods    foodStore
-	logs     logStore
-	reviews  reviewStore
-	resolver foodResolver
+	users   userStore
+	tokens  tokenStore
+	foods   foodStore
+	logs    logStore
+	reviews reviewStore
 }
 
 func New(d Deps) *Server {
 	return &Server{
-		users:    d.Users,
-		tokens:   d.Tokens,
-		foods:    d.Foods,
-		logs:     d.Logs,
-		reviews:  d.Reviews,
-		resolver: d.Resolver,
+		users:   d.Users,
+		tokens:  d.Tokens,
+		foods:   d.Foods,
+		logs:    d.Logs,
+		reviews: d.Reviews,
 	}
 }
 
@@ -94,7 +88,7 @@ func (s *Server) Router(production bool) *gin.Engine {
 		v1.GET("/me", s.getMe)
 		v1.PUT("/me", s.updateMe)
 
-		v1.POST("/resolve", s.resolve)
+		v1.GET("/foods", s.searchFoods)
 		v1.GET("/foods/:id", s.getFood)
 		v1.GET("/barcode/:code", s.getByBarcode)
 		v1.POST("/foods/personal", s.createPersonalFood)

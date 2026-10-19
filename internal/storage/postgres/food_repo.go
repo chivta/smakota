@@ -51,6 +51,7 @@ type SearchParams struct {
 	Query  string
 	UserID *int64
 	Limit  int
+	Offset int
 }
 
 // Candidate is one match. Score is the trigram similarity; Bonus is the
@@ -124,7 +125,7 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 			order by score desc,
 				f.confidence desc,
 				f.id
-			limit $2`, p.Query, p.Limit)
+			limit $2 offset $3`, p.Query, p.Limit, p.Offset)
 	} else {
 		rows, err = r.pool.Query(ctx, `
 			with history as (
@@ -147,8 +148,8 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 				case when owner_user_id = $2 then 1 else 0 end desc,
 				confidence desc,
 				id
-			limit $3`, p.Query, *p.UserID, p.Limit,
-			float64(AffinityWeight), float64(FamiliarAtLogs), float64(RecencyHalfLifeDays), float64(RecencyFloor))
+			limit $3 offset $8`, p.Query, *p.UserID, p.Limit,
+			float64(AffinityWeight), float64(FamiliarAtLogs), float64(RecencyHalfLifeDays), float64(RecencyFloor), p.Offset)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("search foods: %w", err)

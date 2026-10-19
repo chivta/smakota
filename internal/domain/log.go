@@ -16,38 +16,18 @@ type LogEntry struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// InputType records how an entry reached the resolver.
+// InputType records how a review item reached the queue.
 type InputType string
 
 const (
-	InputText    InputType = "text"
-	InputVoice   InputType = "voice"
-	InputPhoto   InputType = "photo"
-	InputBarcode InputType = "barcode"
-	InputRecent  InputType = "recent"
+	InputText InputType = "text"
 )
-
-// Attempt is one pass through the resolver, logged for the acceptance metrics.
-type Attempt struct {
-	ID                     int64     `json:"id"`
-	UserID                 int64     `json:"-"`
-	InputType              InputType `json:"input_type"`
-	LatencyMS              int       `json:"latency_ms"`
-	FirstCandidateAccepted bool      `json:"first_candidate_accepted"`
-	RefinementUsed         bool      `json:"refinement_used"`
-	Resolved               bool      `json:"resolved"`
-	FoodID                 *int64    `json:"food_id,omitempty"`
-	CreatedAt              time.Time `json:"created_at"`
-}
 
 // ReviewReason says why a row reached the review queue.
 type ReviewReason string
 
 const (
-	ReviewUnresolved     ReviewReason = "unresolved"
-	ReviewRefined        ReviewReason = "refined"
 	ReviewManualEntry    ReviewReason = "manual_entry"
-	ReviewBarcodeMiss    ReviewReason = "barcode_miss"
 	ReviewIngestReject   ReviewReason = "ingest_reject"
 	ReviewIngestConflict ReviewReason = "ingest_conflict"
 )

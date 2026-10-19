@@ -17,15 +17,15 @@ info:
     map a code to text in their own translation map.
 servers:
   - url: http://localhost
-    description: Local compose stack, through Caddy
+    description: Local development stack
   - url: http://localhost:8080
-    description: The api service directly
+    description: The api service inside the compose network
 
 tags:
   - name: user
     description: The current user, targets and timezone.
   - name: food
-    description: The catalogue, and resolving free-form input against it.
+    description: The catalogue, and searching it.
   - name: day
     description: Logged entries.
   - name: ops
@@ -125,29 +125,6 @@ components:
           description: |
             History affinity added to the score when ranking, 0 to 0.25. Zero
             for foods the caller has never logged.
-
-    Quantity:
-      type: object
-      description: An amount found in the phrase itself, which skips the portion step.
-      properties:
-        grams: { type: number }
-        count: { type: number }
-        portion: { type: string }
-
-    ResolveResult:
-      type: object
-      properties:
-        candidates:
-          type: array
-          items: { $ref: '#/components/schemas/Candidate' }
-        quantity: { $ref: '#/components/schemas/Quantity' }
-        confidence:
-          type: string
-          enum: [none, low, high]
-          description: |
-            `high` means one candidate is clearly ahead, so the client shows a
-            single result with the portion pre-filled. `low` means show up to
-            five. `none` means nothing cleared the floor.
 
     LogEntry:
       type: object
@@ -268,39 +245,36 @@ paths:
               schema: { $ref: '#/components/schemas/User' }
         "400": { $ref: '#/components/responses/BadRequest' }
 
-  /v1/resolve:
-    post:
+  /v1/foods:
+    get:
       tags: [food]
-      summary: Resolve free-form input to ranked candidates
-      operationId: resolveInput
+      summary: Search the catalogue
+      operationId: searchFoods
       description: |
-        The single pipeline every input mode converges on. A quantity found in
-        the phrase is returned so the client can skip the portion step. The call
-        has no side effects, and input that matches nothing returns an empty
-        `candidates` array with `confidence: none`.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [input, input_type]
-              properties:
-                input: { type: string, maxLength: 500, example: "варена курка 150г" }
-                input_type:
-                  type: string
-                  enum: [text, voice, photo, barcode, recent]
-                clarification:
-                  type: string
-                  maxLength: 500
-                  description: Added after the user taps "не те", alongside the original input.
+        Matches `q` against the alias table and returns ranked rows, best first,
+        with the caller's history bonus applied. The call has no side effects,
+        and a query that matches nothing returns an empty array.
+      parameters:
+        - name: q
+          in: query
+          description: Free text, normalized server-side.
+          schema: { type: string, example: "молоко" }
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
       responses:
         "200":
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/ResolveResult' }
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Candidate' }
         "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
 
   /v1/foods/{id}:
     get:

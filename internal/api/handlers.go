@@ -1,11 +1,26 @@
 package api
 
 import (
+	"math"
 	"net/http"
+	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/arvlas/calbot/internal/metrics"
 	"github.com/arvlas/calbot/internal/resolver"
+	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/gin-gonic/gin"
+)
+
+const (
+	defaultSearchLimit = 20
+	maxSearchLimit     = 100
+)
+
+// Outcome labels of metrics.ResolverAttempts.
+const (
+	searchOutcomeHit   = "hit"
+	searchOutcomeEmpty = "empty"
 )
 
 func (s *Server) getMe(c *gin.Context) {
@@ -63,40 +78,47 @@ func (s *Server) updateMe(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-type resolveRequest struct {
-	Input         string           `json:"input"         validate:"required,max=500"`
-	InputType     domain.InputType `json:"input_type"    validate:"required,oneof=text voice photo barcode recent"`
-	Clarification string           `json:"clarification" validate:"max=500"`
-}
-
-// resolve runs one pass of the shared pipeline every input mode converges on.
-// It has no side effects, and a miss is an empty candidate list.
-func (s *Server) resolve(c *gin.Context) {
+// searchFoods ranks catalogue foods against a free-text query, with the
+// caller's history bonus. It has no side effects, and a miss is an empty array.
+func (s *Server) searchFoods(c *gin.Context) {
 	userID, err := currentUser(c)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	var req resolveRequest
-	err = bindAndValidate(c, &req)
+	limit, err := queryInt(c, "limit", defaultSearchLimit, 1, maxSearchLimit)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+	offset, err := queryInt(c, "offset", 0, 0, math.MaxInt32)
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	result, err := s.resolver.Resolve(c.Request.Context(), resolver.Request{
-		RawInput:      req.Input,
-		InputType:     req.InputType,
-		UserID:        userID,
-		Clarification: req.Clarification,
+	started := time.Now()
+	found, err := s.foods.Search(c.Request.Context(), postgres.SearchParams{
+		Query:  resolver.Normalize(c.Query("q")),
+		UserID: &userID,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if err != nil {
 		RespondWithError(c, err)
 		return
 	}
 
-	c.JSON(http.StatusOK, result)
+	outcome := searchOutcomeHit
+	if len(found) == 0 {
+		outcome = searchOutcomeEmpty
+	}
+	input := string(domain.InputText)
+	metrics.ResolverAttempts.WithLabelValues(input, outcome).Inc()
+	metrics.ResolverLatency.WithLabelValues(input).Observe(time.Since(started).Seconds())
+
+	c.JSON(http.StatusOK, found)
 }
 
 func (s *Server) getFood(c *gin.Context) {
