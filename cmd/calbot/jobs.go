@@ -16,11 +16,13 @@ import (
 
 // Per-source run budgets. The OFF full dump is the long pole.
 const (
-	crawlTimeout    = 2 * time.Hour
+	crawlTimeout = 2 * time.Hour
+	// zakazTimeout covers six stores of about 2,000 requests each at 2 req/s.
+	zakazTimeout    = 4 * time.Hour
 	dumpTimeout     = 6 * time.Hour
 	quickJobTimeout = 5 * time.Minute
 	// allIngestTimeout covers every adapter running back to back.
-	allIngestTimeout = dumpTimeout + 5*crawlTimeout
+	allIngestTimeout = dumpTimeout + zakazTimeout + 4*crawlTimeout
 )
 
 // Job names for the two OFF modes. The registry and the schedule both use them.
@@ -67,7 +69,7 @@ func (c *container) jobs() []scheduler.Job {
 		ingestJob(offDeltaJob, scheduler.Daily(3, 0), crawlTimeout),
 		ingestJob(offFullJob, scheduler.Weekly(time.Sunday, 2, 0), dumpTimeout),
 		ingestJob("silpo", scheduler.Weekly(time.Monday, 2, 0), crawlTimeout),
-		ingestJob("zakaz", scheduler.Weekly(time.Tuesday, 2, 0), crawlTimeout),
+		ingestJob("zakaz", scheduler.Weekly(time.Tuesday, 2, 0), zakazTimeout),
 		ingestJob("proe", scheduler.Weekly(time.Wednesday, 2, 0), crawlTimeout),
 		ingestJob("usda", scheduler.Weekly(time.Thursday, 2, 0), crawlTimeout),
 		ingestJob("fora", scheduler.Weekly(time.Friday, 2, 0), crawlTimeout),

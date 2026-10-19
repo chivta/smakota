@@ -29,7 +29,8 @@ const (
 	cursorSeparator = "|"
 )
 
-// Adapter walks each configured store's leaf categories page by page.
+// Adapter walks each configured store's leaf categories page by page, one
+// store per chain, and emits each ean once per run.
 type Adapter struct {
 	http     *ingest.HTTPClient
 	storeIDs []string
@@ -96,6 +97,10 @@ func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw
 		return "", err
 	}
 
+	// The same product, and the chain-prefixed counter items, recur across
+	// categories and stores; a resumed run only dedupes from its resume point,
+	// staging's unique key covers the rest.
+	seen := map[string]struct{}{}
 	for _, storeID := range a.storeIDs {
 		if position.store != "" && storeID != position.store {
 			continue
@@ -112,7 +117,7 @@ func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw
 		}
 		position = cursorPosition{}
 		for _, categoryID := range categoryIDs[start:] {
-			err = a.fetchCategory(ctx, storeID, categoryID, page, emit)
+			err = a.fetchCategory(ctx, storeID, categoryID, page, seen, emit)
 			if err != nil {
 				return "", err
 			}
@@ -122,7 +127,7 @@ func (a *Adapter) Fetch(ctx context.Context, cursor string, emit func(ingest.Raw
 	return cursorDone, nil
 }
 
-func (a *Adapter) fetchCategory(ctx context.Context, storeID, categoryID string, page int, emit func(ingest.Raw) error) error {
+func (a *Adapter) fetchCategory(ctx context.Context, storeID, categoryID string, page int, seen map[string]struct{}, emit func(ingest.Raw) error) error {
 	for {
 		productsURL := fmt.Sprintf("%s%s/categories/%s/products/?page=%d", baseURL, url.PathEscape(storeID), url.PathEscape(categoryID), page)
 		response, err := a.http.Get(ctx, a.Name(), productsURL, zakazRPS, true)
@@ -142,32 +147,17 @@ func (a *Adapter) fetchCategory(ctx context.Context, storeID, categoryID string,
 		}
 
 		for _, item := range result.Results {
-			var p product
-			err = json.Unmarshal(item, &p)
+			raw, ok, err := toRaw(storeID, categoryID, page, item)
 			if err != nil {
-				return fmt.Errorf("decode Zakaz product in category %s: %w", categoryID, err)
+				return err
 			}
-			if p.Nutrition["ingredient_energy"] == "" || p.EAN == "" {
+			if !ok {
 				continue
 			}
-			raw := ingest.Raw{
-				ExternalID: p.EAN,
-				Payload:    item,
-				SourceURL:  fmt.Sprintf("%s%s/products/search/?q=%s", baseURL, url.PathEscape(storeID), url.QueryEscape(p.EAN)),
-				Cursor:     formatCursor(cursorPosition{store: storeID, category: categoryID, page: page}),
-				Product: ingest.RawProduct{
-					Name:    p.Title,
-					Brand:   p.Producer.Trademark,
-					Barcode: p.EAN,
-					Kcal:    p.Nutrition["ingredient_energy"],
-					Protein: p.Nutrition["ingredient_protein"],
-					Fat:     p.Nutrition["ingredient_fat"],
-					Carbs:   p.Nutrition["ingredient_carbohydrates"],
-				},
+			if _, duplicate := seen[raw.ExternalID]; duplicate {
+				continue
 			}
-			if p.Weight > 0 {
-				raw.Product.Quantity = strconv.FormatFloat(p.Weight, 'f', -1, 64) + " g"
-			}
+			seen[raw.ExternalID] = struct{}{}
 			err = emit(raw)
 			if err != nil {
 				return err
@@ -175,6 +165,38 @@ func (a *Adapter) fetchCategory(ctx context.Context, storeID, categoryID string,
 		}
 		page++
 	}
+}
+
+// toRaw maps one API product to a staged row. ok is false for products without
+// a nutrition panel or an ean, which are skipped, not rejected.
+func toRaw(storeID, categoryID string, page int, item json.RawMessage) (raw ingest.Raw, ok bool, err error) {
+	var p product
+	err = json.Unmarshal(item, &p)
+	if err != nil {
+		return ingest.Raw{}, false, fmt.Errorf("decode Zakaz product in category %s: %w", categoryID, err)
+	}
+	if p.Nutrition["ingredient_energy"] == "" || p.EAN == "" {
+		return ingest.Raw{}, false, nil
+	}
+	raw = ingest.Raw{
+		ExternalID: p.EAN,
+		Payload:    item,
+		SourceURL:  fmt.Sprintf("%s%s/products/search/?q=%s", baseURL, url.PathEscape(storeID), url.QueryEscape(p.EAN)),
+		Cursor:     formatCursor(cursorPosition{store: storeID, category: categoryID, page: page}),
+		Product: ingest.RawProduct{
+			Name:    p.Title,
+			Brand:   p.Producer.Trademark,
+			Barcode: p.EAN,
+			Kcal:    p.Nutrition["ingredient_energy"],
+			Protein: p.Nutrition["ingredient_protein"],
+			Fat:     p.Nutrition["ingredient_fat"],
+			Carbs:   p.Nutrition["ingredient_carbohydrates"],
+		},
+	}
+	if p.Weight > 0 {
+		raw.Product.Quantity = strconv.FormatFloat(p.Weight, 'f', -1, 64) + " g"
+	}
+	return raw, true, nil
 }
 
 // leafCategories flattens the category tree to its leaves, skipping promo
@@ -190,6 +212,11 @@ func (a *Adapter) leafCategories(ctx context.Context, storeID string) ([]string,
 	if err != nil {
 		return nil, fmt.Errorf("decode Zakaz store %s categories: %w", storeID, err)
 	}
+	return flattenLeaves(tree), nil
+}
+
+// flattenLeaves lists the leaf ids of a category tree, skipping collections.
+func flattenLeaves(tree []category) []string {
 	var ids []string
 	var walk func([]category)
 	walk = func(nodes []category) {
@@ -204,7 +231,7 @@ func (a *Adapter) leafCategories(ctx context.Context, storeID string) ([]string,
 		}
 	}
 	walk(tree)
-	return ids, nil
+	return ids
 }
 
 type cursorPosition struct {

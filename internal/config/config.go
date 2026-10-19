@@ -27,7 +27,10 @@ type Config struct {
 	IngestRejectCap int    `env:"INGEST_REJECT_CAP" envDefault:"50"          validate:"min=0"`
 	OFFDumpURL      string `env:"OFF_DUMP_URL"      envDefault:"https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz" validate:"required,url"`
 
-	ZakazStoreIDs []string `env:"ZAKAZ_STORE_IDS" envDefault:"482010105" envSeparator:"," validate:"min=1,dive,required"`
+	// ZakazStoreIDs is one store per chain: Novus, Auchan, Таврія В, Космос,
+	// Megamarket, ЕКО маркет. Each chain's kitchen publishes nutrition for its
+	// in-house food, and stores of one chain share their chain-coded items.
+	ZakazStoreIDs []string `env:"ZAKAZ_STORE_IDS" envDefault:"482010105,48246401,482211449,48225531,48267601,482800030" envSeparator:"," validate:"min=1,dive,required"`
 	// ForaFilialIDs is an ordered fallback list of big Kyiv stores; each stocks
 	// a subset of the range, so the adapter unions them.
 	ForaFilialIDs []int    `env:"FORA_FILIAL_IDS" envDefault:"3433,3410,3805,1851,3356" envSeparator:"," validate:"min=1,dive,gt=0"`
