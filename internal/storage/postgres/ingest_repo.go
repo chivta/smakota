@@ -182,9 +182,9 @@ func (r *IngestRepo) Stage(ctx context.Context, items []StagedItem) (int, error)
 
 func (r *IngestRepo) Reject(ctx context.Context, sourceID, externalID, reason string, payload []byte) error {
 	_, err := r.pool.Exec(ctx, `
-		insert into review_queue (raw_input, input_type, reason, payload)
-		values ($1, 'ingest', $2, $3)`,
-		sourceID+":"+externalID, domain.ReviewIngestReject, nullableJSON(payload))
+		insert into review_queue (raw_input, input_type, reason, detail, payload)
+		values ($1, 'ingest', $2, $3, $4)`,
+		sourceID+":"+externalID, domain.ReviewIngestReject, reason, nullableJSON(payload))
 	if err != nil {
 		return fmt.Errorf("reject ingest item: %w", err)
 	}
