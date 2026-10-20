@@ -30,6 +30,17 @@ const ingestAllName = "all"
 // ingestAgeRefresh is how often the freshness gauge is recomputed.
 const ingestAgeRefresh = time.Minute
 
+// productStatsRefresh is how often the aggregate-SQL gauges are recomputed;
+// counting every food row per scrape would be too heavy.
+const productStatsRefresh = 5 * time.Minute
+
+// Labels of metrics.ActiveUsers.
+const (
+	windowDay   = "1d"
+	windowWeek  = "7d"
+	windowMonth = "30d"
+)
+
 // shutdownGrace is how long in-flight requests get to finish after a signal.
 const shutdownGrace = 15 * time.Second
 
@@ -125,6 +136,7 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 	})
 
 	go c.trackIngestAge(ctx)
+	go c.trackProductStats(ctx)
 
 	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
@@ -169,6 +181,40 @@ func (c *container) trackIngestAge(ctx context.Context) {
 			if ok {
 				metrics.IngestAge.WithLabelValues(source).Set(time.Since(finishedAt).Seconds())
 			}
+		}
+
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+		}
+	}
+}
+
+// trackProductStats keeps the catalogue-size and active-user gauges fresh. A
+// failed refresh is logged and the previous values stay.
+func (c *container) trackProductStats(ctx context.Context) {
+	ticker := time.NewTicker(productStatsRefresh)
+	defer ticker.Stop()
+
+	for {
+		counts, err := c.foods.CountBySource(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("refresh catalogue size")
+		} else {
+			metrics.CatalogueFoods.Reset()
+			for source, n := range counts {
+				metrics.CatalogueFoods.WithLabelValues(source).Set(float64(n))
+			}
+		}
+
+		active, err := c.logs.ActiveUsers(ctx)
+		if err != nil {
+			log.Error().Err(err).Msg("refresh active users")
+		} else {
+			metrics.ActiveUsers.WithLabelValues(windowDay).Set(float64(active.Day))
+			metrics.ActiveUsers.WithLabelValues(windowWeek).Set(float64(active.Week))
+			metrics.ActiveUsers.WithLabelValues(windowMonth).Set(float64(active.Month))
 		}
 
 		select {

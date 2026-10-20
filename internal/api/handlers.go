@@ -119,6 +119,8 @@ func (s *Server) searchFoods(c *gin.Context) {
 	metrics.ResolverAttempts.WithLabelValues(input, outcome).Inc()
 	metrics.ResolverLatency.WithLabelValues(input).Observe(time.Since(started).Seconds())
 
+	metrics.SearchResults.Observe(float64(len(found)))
+
 	c.JSON(http.StatusOK, found)
 }
 
@@ -197,6 +199,7 @@ func (s *Server) createPersonalFood(c *gin.Context) {
 		Reason:    domain.ReviewManualEntry,
 	}
 	logSoftError(s.reviews.Add(c.Request.Context(), item), "queue manual entry")
+	metrics.PersonalFoods.Inc()
 
 	c.JSON(http.StatusCreated, created)
 }

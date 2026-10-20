@@ -44,6 +44,37 @@ var (
 		Name: "calbot_ingest_last_success_seconds",
 		Help: "Seconds since the last successful run, by source.",
 	}, []string{"source"})
+
+	// Entries answers whether people find their food in the catalogue or type
+	// the numbers by hand, and which source earns its keep.
+	Entries = promauto.NewCounterVec(prometheus.CounterOpts{
+		Name: "calbot_entries_total",
+		Help: "Log entries saved, by path, amount kind and food source.",
+	}, []string{"path", "amount", "food_source"})
+
+	// SearchResults separates a catalogue gap (0) from a ranking problem (100).
+	SearchResults = promauto.NewHistogram(prometheus.HistogramOpts{
+		Name:    "calbot_search_results",
+		Help:    "Candidates returned per search.",
+		Buckets: []float64{0, 1, 2, 3, 5, 10, 20, 50, 100},
+	})
+
+	PersonalFoods = promauto.NewCounter(prometheus.CounterOpts{
+		Name: "calbot_personal_foods_total",
+		Help: "Personal foods created.",
+	})
+
+	// CatalogueFoods and ActiveUsers come from aggregate SQL, so a ticker
+	// refreshes them instead of every scrape.
+	CatalogueFoods = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "calbot_catalogue_foods",
+		Help: "Catalogue rows, by source.",
+	}, []string{"source"})
+
+	ActiveUsers = promauto.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "calbot_active_users",
+		Help: "Distinct users with a log entry created inside the window.",
+	}, []string{"window"})
 )
 
 // errorHook increments Errors on every error-level event.
