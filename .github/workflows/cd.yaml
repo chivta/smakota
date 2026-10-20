@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
   packages: write
 
 concurrency:
@@ -45,19 +45,21 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SHA: ${{ github.event.workflow_run.head_sha }}
-      IMAGE: ghcr.io/arvlas/calbot
+      IMAGE: ghcr.io/chivta/smakota
     steps:
+      # main rather than the detached SHA, so the deploy commit has a branch to land on.
       - uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.workflow_run.head_sha }}
-          fetch-depth: 2
+          ref: main
+      # A newer push to main means this run is stale and must not overwrite its deploy.
+      - name: Guard against stale runs
+        run: test "$(git rev-parse HEAD)" = "$SHA"
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       - uses: docker/setup-buildx-action@v4
-      # The Kubernetes manifests will consume the SHA-tagged image pushed here.
       - name: Build and push calbot
         uses: docker/build-push-action@v7
         with:
@@ -67,3 +69,11 @@ jobs:
           tags: ${{ env.IMAGE }}:${{ env.SHA }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      - name: Pin the new tag into the manifests
+        run: |
+          sed -i -E "s|^( +newTag: ).*|\1$SHA|" k8s/kustomization.yaml
+          git diff --quiet && exit 0
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "deploy: calbot $SHA"
+          git push origin main

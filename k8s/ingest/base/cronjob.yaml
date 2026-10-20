@@ -1,0 +1,48 @@
+# Template for every crawl; each source overlay renames it and patches in the
+# schedule, deadline and source name. Migrations are the api's job.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ingest
+spec:
+  schedule: "0 5 * * *"
+  timeZone: Europe/Kyiv
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      activeDeadlineSeconds: 9000
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+          containers:
+            - name: ingest
+              image: ghcr.io/chivta/smakota:placeholder
+              args: [ingest, SOURCE]
+              envFrom:
+                - secretRef:
+                    name: app-secrets
+              env:
+                - name: ENV
+                  value: production
+                - name: LOG_LEVEL
+                  value: info
+                - name: PUBLIC_URL
+                  value: https://api.smakota.chivtar.dev
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+              resources:
+                requests:
+                  cpu: 100m
+                  memory: 128Mi
+                limits:
+                  memory: 512Mi

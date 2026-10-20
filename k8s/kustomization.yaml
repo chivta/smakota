@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+namespace: smakota
+resources:
+  - namespace.yaml
+  - secrets.enc.yaml
+  - ingress.yaml
+  - api/deployment.yaml
+  - api/service.yaml
+  - api/service-monitor.yaml
+  - postgres/service.yaml
+  - postgres/statefulset.yaml
+  - ingest/off-delta
+  - ingest/off-full
+  - ingest/silpo
+  - ingest/zakaz
+  - ingest/proe
+  - ingest/usda
+  - ingest/fora
+  - ingest/mcdonalds
+# CD rewrites newTag with the commit SHA.
+images:
+  - name: ghcr.io/chivta/smakota
+    newTag: placeholder

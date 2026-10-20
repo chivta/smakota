@@ -3,3 +3,4 @@
 /tmp/
 node_modules/
 *.test
+/k8s/secrets.yaml
