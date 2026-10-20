@@ -149,3 +149,23 @@ func logEntryLocked(ctx context.Context, tx pgx.Tx, userID, entryID int64) (bool
 	).Scan(&locked)
 	return locked, err
 }
+
+// ActiveUsers holds distinct users with an entry created inside each window.
+type ActiveUsers struct {
+	Day, Week, Month int64
+}
+
+func (r *LogRepo) ActiveUsers(ctx context.Context) (ActiveUsers, error) {
+	var a ActiveUsers
+	err := r.pool.QueryRow(ctx, `
+		select
+			count(distinct user_id) filter (where created_at >= now() - interval '1 day'),
+			count(distinct user_id) filter (where created_at >= now() - interval '7 days'),
+			count(distinct user_id)
+		from log_entries
+		where created_at >= now() - interval '30 days'`).Scan(&a.Day, &a.Week, &a.Month)
+	if err != nil {
+		return ActiveUsers{}, fmt.Errorf("count active users: %w", err)
+	}
+	return a, nil
+}

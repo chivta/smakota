@@ -444,3 +444,33 @@ func foldAliases(foods []domain.Food, normalize func(string) string) foldedAlias
 	}
 	return out
 }
+
+// CountBySource is the catalogue size per source. Personal foods are not
+// catalogue and are left out.
+func (r *FoodRepo) CountBySource(ctx context.Context) (map[string]int64, error) {
+	rows, err := r.pool.Query(ctx, `
+		select source_id, count(*)
+		from foods
+		where owner_user_id is null
+		group by source_id`)
+	if err != nil {
+		return nil, fmt.Errorf("count foods by source: %w", err)
+	}
+	defer rows.Close()
+
+	counts := map[string]int64{}
+	for rows.Next() {
+		var source string
+		var n int64
+		err = rows.Scan(&source, &n)
+		if err != nil {
+			return nil, fmt.Errorf("scan food count: %w", err)
+		}
+		counts[source] = n
+	}
+	err = rows.Err()
+	if err != nil {
+		return nil, fmt.Errorf("count foods by source: %w", err)
+	}
+	return counts, nil
+}

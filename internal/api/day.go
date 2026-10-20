@@ -7,12 +7,28 @@ import (
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/arvlas/calbot/internal/metrics"
 	"github.com/gin-gonic/gin"
 )
 
 const (
 	defaultEntriesLimit = 100
 	maxEntriesLimit     = 500
+)
+
+// Labels of metrics.Entries.
+const (
+	entryPathCatalogue = "catalogue"
+	entryPathInline    = "inline"
+
+	amountGrams          = "grams"
+	amountPortion        = "portion"
+	amountDefaultPortion = "default_portion"
+	// amountFallback is the 100 g assumed for a food that carries no portion at
+	// all; it is not a portion the caller or the catalogue chose.
+	amountFallback = "fallback_100g"
+
+	foodSourceInline = "inline"
 )
 
 type inlineNutrition struct {
@@ -51,10 +67,13 @@ func (s *Server) addEntry(c *gin.Context) {
 	}
 
 	var entry domain.LogEntry
+	var path, amount, foodSource string
 	switch {
 	case req.FoodID != nil && req.Name == "" && req.Nutrition == nil:
-		entry, err = s.catalogueEntry(c.Request.Context(), *req.FoodID, req)
+		path = entryPathCatalogue
+		entry, amount, foodSource, err = s.catalogueEntry(c.Request.Context(), *req.FoodID, req)
 	case req.FoodID == nil && req.Name != "":
+		path, amount, foodSource = entryPathInline, amountGrams, foodSourceInline
 		entry, err = inlineEntry(req)
 	default:
 		err = domain.ErrInvalidInput
@@ -76,26 +95,31 @@ func (s *Server) addEntry(c *gin.Context) {
 		return
 	}
 
+	metrics.Entries.WithLabelValues(path, amount, foodSource).Inc()
+
 	c.JSON(http.StatusCreated, saved)
 }
 
-func (s *Server) catalogueEntry(ctx context.Context, foodID int64, req addEntryRequest) (domain.LogEntry, error) {
+// catalogueEntry also returns the amount kind and the food's source, the
+// labels of metrics.Entries.
+func (s *Server) catalogueEntry(ctx context.Context, foodID int64, req addEntryRequest) (domain.LogEntry, string, string, error) {
 	food, err := s.foods.GetByID(ctx, foodID)
 	if err != nil {
-		return domain.LogEntry{}, err
+		return domain.LogEntry{}, "", "", err
 	}
 
-	grams, err := resolveGrams(food, req)
+	grams, amount, err := resolveGrams(food, req)
 	if err != nil {
-		return domain.LogEntry{}, err
+		return domain.LogEntry{}, "", "", err
 	}
 
-	return domain.LogEntry{
+	entry := domain.LogEntry{
 		FoodID:    &food.ID,
 		FoodName:  food.Name,
 		Grams:     grams,
 		Nutrition: food.Scale(grams),
-	}, nil
+	}
+	return entry, amount, food.SourceID, nil
 }
 
 // inlineEntry takes the nutrition as absolute values for the given grams, the
@@ -117,11 +141,11 @@ func inlineEntry(req addEntryRequest) (domain.LogEntry, error) {
 	}, nil
 }
 
-// resolveGrams turns whichever amount the client sent into grams. A named
-// portion count multiplies that portion's grams.
-func resolveGrams(food domain.Food, req addEntryRequest) (float64, error) {
+// resolveGrams turns whichever amount the client sent into grams, and says
+// which kind it was. A named portion count multiplies that portion's grams.
+func resolveGrams(food domain.Food, req addEntryRequest) (float64, string, error) {
 	if req.Grams > 0 {
-		return req.Grams, nil
+		return req.Grams, amountGrams, nil
 	}
 
 	if req.PortionName != "" {
@@ -131,17 +155,17 @@ func resolveGrams(food domain.Food, req addEntryRequest) (float64, error) {
 				if qty == 0 {
 					qty = 1
 				}
-				return p.Grams * qty, nil
+				return p.Grams * qty, amountPortion, nil
 			}
 		}
-		return 0, domain.ErrInvalidInput
+		return 0, "", domain.ErrInvalidInput
 	}
 
 	portion, ok := food.DefaultPortion()
 	if ok {
-		return portion.Grams, nil
+		return portion.Grams, amountDefaultPortion, nil
 	}
-	return 100, nil
+	return 100, amountFallback, nil
 }
 
 // listEntries is the history read: a flat page of entries, newest first. It
