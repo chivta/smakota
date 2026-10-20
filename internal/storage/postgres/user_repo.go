@@ -8,11 +8,15 @@ import (
 	"github.com/arvlas/calbot/internal/domain"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// uniqueViolation is the SQLSTATE of a unique index conflict.
+const uniqueViolation = "23505"
+
 const userColumns = `
-	u.id, coalesce(u.sex, ''), coalesce(u.age, 0),
+	u.id, coalesce(u.email, ''), coalesce(u.sex, ''), coalesce(u.age, 0),
 	coalesce(u.height_cm, 0), coalesce(u.weight_kg, 0),
 	coalesce(u.goal_weight_kg, 0), coalesce(u.activity_level, ''),
 	coalesce(u.kcal_target, 0), coalesce(u.protein_target_g, 0),
@@ -48,6 +52,44 @@ func (r *UserRepo) Create(ctx context.Context) (domain.User, error) {
 	return created, nil
 }
 
+// CreateWithCredentials inserts a user that can log in. The email must already
+// be normalized; a taken one is ErrConflict.
+func (r *UserRepo) CreateWithCredentials(ctx context.Context, email, passwordHash string) (domain.User, error) {
+	row := r.pool.QueryRow(ctx, `
+		insert into users as u (email, password_hash) values ($1, $2)
+		returning `+userColumns,
+		email, passwordHash)
+	created, err := scanUser(row)
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == uniqueViolation {
+		return domain.User{}, domain.ErrConflict
+	}
+	if err != nil {
+		return domain.User{}, fmt.Errorf("create user with credentials: %w", err)
+	}
+	return created, nil
+}
+
+// GetCredentials returns the id and password hash of the user with this
+// normalized email, or ErrNotFound.
+func (r *UserRepo) GetCredentials(ctx context.Context, email string) (int64, string, error) {
+	var id int64
+	var hash string
+	err := r.pool.QueryRow(ctx, `
+		select id, password_hash from users
+		where lower(email) = $1 and password_hash is not null`,
+		email,
+	).Scan(&id, &hash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return 0, "", domain.ErrNotFound
+	}
+	if err != nil {
+		return 0, "", fmt.Errorf("get credentials: %w", err)
+	}
+	return id, hash, nil
+}
+
 func (r *UserRepo) Update(ctx context.Context, u domain.User) error {
 	err := r.pool.QueryRow(ctx, `
 		update users set
@@ -79,7 +121,7 @@ func (r *UserRepo) Update(ctx context.Context, u domain.User) error {
 func scanUser(row pgx.Row) (domain.User, error) {
 	var u domain.User
 	err := row.Scan(
-		&u.ID, &u.Sex, &u.Age, &u.HeightCM, &u.WeightKG,
+		&u.ID, &u.Email, &u.Sex, &u.Age, &u.HeightCM, &u.WeightKG,
 		&u.GoalWeightKG, &u.ActivityLevel, &u.KcalTarget, &u.ProteinTargetG,
 		&u.Timezone, &u.OnboardedAt,
 	)

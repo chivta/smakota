@@ -56,11 +56,11 @@ func (r *TokenRepo) Revoke(ctx context.Context, tokenID int64) error {
 	return nil
 }
 
-// Authenticate returns the owner of a live token and stamps last_used_at in the
-// same round trip, skipping the write when the stamp is already recent.
-func (r *TokenRepo) Authenticate(ctx context.Context, hash []byte) (int64, error) {
-	var userID int64
-	err := r.pool.QueryRow(ctx, `
+// Authenticate returns the owner and the id of a live token and stamps
+// last_used_at in the same round trip, skipping the write when the stamp is
+// already recent.
+func (r *TokenRepo) Authenticate(ctx context.Context, hash []byte) (userID, tokenID int64, err error) {
+	err = r.pool.QueryRow(ctx, `
 		with live as (
 			select id, user_id from api_tokens
 			where token_hash = $1 and revoked_at is null
@@ -69,14 +69,14 @@ func (r *TokenRepo) Authenticate(ctx context.Context, hash []byte) (int64, error
 			where id in (select id from live)
 				and (last_used_at is null or last_used_at < now() - make_interval(secs => $2))
 		)
-		select user_id from live`,
+		select user_id, id from live`,
 		hash, lastUsedGranularity.Seconds(),
-	).Scan(&userID)
+	).Scan(&userID, &tokenID)
 	if errors.Is(err, pgx.ErrNoRows) {
-		return 0, domain.ErrUnauthorized
+		return 0, 0, domain.ErrUnauthorized
 	}
 	if err != nil {
-		return 0, fmt.Errorf("authenticate token: %w", err)
+		return 0, 0, fmt.Errorf("authenticate token: %w", err)
 	}
-	return userID, nil
+	return userID, tokenID, nil
 }

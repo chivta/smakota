@@ -8,10 +8,12 @@ info:
     Backend for the Ukrainian calorie-logging bot. It holds no client-specific
     logic: every client is just a holder of a bearer token.
 
-    There is no signup. An operator creates a user with `calbot user create`,
-    then issues that user a token with `calbot token issue <user-id>`, which
-    prints it once; only its hash is stored. `calbot token revoke <token-id>`
-    disables it.
+    A client creates an account with `POST /v1/auth/register` or signs in with
+    `POST /v1/auth/login`; both return a token, shown once, of which only the
+    hash is stored. `POST /v1/auth/logout` revokes the token it was called
+    with. An operator can still create a credential-less user with
+    `calbot user create` and issue it a token with `calbot token issue
+    <user-id>`; `calbot token revoke <token-id>` disables one.
 
     Errors carry a machine-readable `code` and never a human message. Clients
     map a code to text in their own translation map.
@@ -22,6 +24,8 @@ servers:
     description: This server
 
 tags:
+  - name: auth
+    description: Creating an account and getting or revoking a token.
   - name: user
     description: The current user, targets and timezone.
   - name: food
@@ -184,10 +188,27 @@ components:
             carbs: { type: number, minimum: 0 }
         logged_at: { type: string, format: date-time, description: When the food was eaten. Defaults to now. }
 
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, maxLength: 254, description: Matched case-insensitively. }
+        password:
+          type: string
+          minLength: 8
+          description: At most 72 bytes; bcrypt ignores anything past that, so longer is rejected.
+
+    Session:
+      type: object
+      properties:
+        token: { type: string, description: Shown once; only its hash is stored. }
+        user: { $ref: '#/components/schemas/User' }
+
     User:
       type: object
       properties:
         id: { type: integer, format: int64 }
+        email: { type: string, description: Absent for users created without credentials. }
         sex: { type: string, enum: [male, female] }
         age: { type: integer }
         height_cm: { type: integer }
@@ -224,6 +245,63 @@ paths:
           description: Metrics in the Prometheus text format
           content:
             text/plain: {}
+
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Create an account
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        "201":
+          description: Account created, with its first token
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "409":
+          description: The email is already registered
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Get a fresh token
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Credentials' }
+      responses:
+        "200":
+          description: A new token; earlier ones stay valid
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401":
+          description: Unknown email or wrong password, indistinguishable
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /v1/auth/logout:
+    post:
+      tags: [auth]
+      summary: Revoke the calling token
+      operationId: logout
+      responses:
+        "204": { description: Revoked }
+        "401": { $ref: '#/components/responses/Unauthorized' }
 
   /v1/me:
     get:

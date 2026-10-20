@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 type Sex string
 
@@ -26,6 +29,7 @@ const DayEditWindow = 7 * 24 * time.Hour
 
 type User struct {
 	ID             int64         `json:"id"`
+	Email          string        `json:"email,omitempty"`
 	Sex            Sex           `json:"sex"`
 	Age            int           `json:"age"`
 	HeightCM       int           `json:"height_cm"`
@@ -36,4 +40,9 @@ type User struct {
 	ProteinTargetG int           `json:"protein_target_g"`
 	Timezone       string        `json:"timezone"`
 	OnboardedAt    *time.Time    `json:"-"`
+}
+
+// NormalizeEmail is the stored and looked-up form of an email address.
+func NormalizeEmail(email string) string {
+	return strings.ToLower(strings.TrimSpace(email))
 }

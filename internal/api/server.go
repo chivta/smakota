@@ -18,10 +18,14 @@ import (
 type userStore interface {
 	GetByID(ctx context.Context, id int64) (domain.User, error)
 	Update(ctx context.Context, u domain.User) error
+	CreateWithCredentials(ctx context.Context, email, passwordHash string) (domain.User, error)
+	GetCredentials(ctx context.Context, email string) (int64, string, error)
 }
 
 type tokenStore interface {
-	Authenticate(ctx context.Context, hash []byte) (int64, error)
+	Authenticate(ctx context.Context, hash []byte) (userID, tokenID int64, err error)
+	Issue(ctx context.Context, userID int64, name string, hash []byte) (int64, error)
+	Revoke(ctx context.Context, tokenID int64) error
 }
 
 type foodStore interface {
@@ -70,7 +74,7 @@ func New(d Deps) *Server {
 	}
 }
 
-// Router wires every route. /health and /metrics sit outside the auth group and
+// Router wires every route. /health, /metrics, register and login sit outside the auth group and
 // outside the logging middleware.
 func (s *Server) Router(production bool) *gin.Engine {
 	if production {
@@ -87,8 +91,13 @@ func (s *Server) Router(production bool) *gin.Engine {
 		s.registerDevUI(r)
 	}
 
+	r.POST("/v1/auth/register", s.register)
+	r.POST("/v1/auth/login", s.login)
+
 	v1 := r.Group("/v1", s.auth())
 	{
+		v1.POST("/auth/logout", s.logout)
+
 		v1.GET("/me", s.getMe)
 		v1.PUT("/me", s.updateMe)
 
