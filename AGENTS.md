@@ -12,8 +12,14 @@ Go, Postgres, Gin, zerolog, pgx, tern.
 
 `compose.yaml` is local development only: `make dev` runs the Dockerfile `dev`
 stage with the repo bind-mounted and air hot-reloading, and publishes the API on
-:8080 and Postgres on :5432. Production is Kubernetes, not yet written; CD only
-builds and pushes the `production` image tagged with the commit SHA.
+:8080 and Postgres on :5432. Production is a k3s cluster driven by Flux from
+`k8s/`: the api Deployment (which runs `migrate` as an init container),
+Postgres as a StatefulSet, and one CronJob per catalogue crawl at 05:00
+Europe/Kyiv under `k8s/ingest/`, which replaces the in-process `scheduler`
+role. CD builds and pushes the `production` image tagged with the commit SHA,
+then pins that tag into `k8s/kustomization.yaml` and commits it. Secrets live
+in `k8s/secrets.enc.yaml` (SOPS); edit the gitignored `k8s/secrets.yaml` and
+re-encrypt.
 
 ## Rules this repo will not survive without
 
