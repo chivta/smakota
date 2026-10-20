@@ -109,6 +109,10 @@ components:
         package_g: { type: number, nullable: true }
         source_id: { type: string, example: "curated" }
         source_url: { type: string }
+        created_by_user_id:
+          type: integer
+          format: int64
+          description: The user who contributed the entry, when one did.
         portions:
           type: array
           items: { $ref: '#/components/schemas/Portion' }
@@ -356,14 +360,16 @@ paths:
               schema: { $ref: '#/components/schemas/Food' }
         "404": { $ref: '#/components/responses/NotFound' }
 
-  /v1/foods/personal:
+  /v1/foods:
     post:
       tags: [food]
-      summary: Create a personal entry
-      operationId: createPersonalFood
+      summary: Contribute a food
+      operationId: createFood
       description: |
-        The escape hatch after two failed refinements. The entry belongs to this
-        user and outranks the catalogue for them.
+        Adds an entry to the shared catalogue, visible to every caller. The
+        caller is recorded as `created_by_user_id`; that is attribution, not
+        ownership. If portions are given and none is marked default, the first
+        one is the default.
       requestBody:
         required: true
         content:
@@ -377,6 +383,17 @@ paths:
                 protein: { type: number, maximum: 100 }
                 fat: { type: number, maximum: 100 }
                 carbs: { type: number, maximum: 100 }
+                portions:
+                  type: array
+                  maxItems: 5
+                  description: At most one may have `is_default` set.
+                  items:
+                    type: object
+                    required: [name, grams]
+                    properties:
+                      name: { type: string, maxLength: 50 }
+                      grams: { type: number, exclusiveMinimum: 0, maximum: 5000 }
+                      is_default: { type: boolean }
       responses:
         "201":
           description: Created

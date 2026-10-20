@@ -90,6 +90,7 @@ type Food struct {
 	LicenseClass LicenseClass `json:"-"`
 	Confidence   int          `json:"-"`
 	OwnerUserID  *int64       `json:"-"`
+	CreatedBy    *int64       `json:"created_by_user_id,omitempty"`
 	FetchedAt    *time.Time   `json:"-"`
 	Portions     []Portion    `json:"portions,omitempty"`
 	Aliases      []Alias      `json:"-"`
