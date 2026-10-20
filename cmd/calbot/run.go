@@ -133,14 +133,25 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 		Foods:   c.foods,
 		Logs:    c.logs,
 		Reviews: c.reviews,
+
+		TrustedProxies: cfg.TrustedProxies,
+		AuthRateLimit: api.RateLimit{
+			PerMinute: cfg.AuthRateLimitPerMinute,
+			Burst:     cfg.AuthRateLimitBurst,
+		},
 	})
+
+	router, err := server.Router(ctx, cfg.IsProduction())
+	if err != nil {
+		return err
+	}
 
 	go c.trackIngestAge(ctx)
 	go c.trackProductStats(ctx)
 
 	httpServer := &http.Server{
 		Addr:    cfg.HTTPAddr,
-		Handler: server.Router(cfg.IsProduction()),
+		Handler: router,
 	}
 
 	go func() {

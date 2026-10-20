@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -54,6 +55,11 @@ type Deps struct {
 	Foods   foodStore
 	Logs    logStore
 	Reviews reviewStore
+
+	// TrustedProxies are the addresses whose X-Forwarded-For is believed;
+	// the rate limit keys on the client IP that results.
+	TrustedProxies []string
+	AuthRateLimit  RateLimit
 }
 
 type Server struct {
@@ -62,6 +68,9 @@ type Server struct {
 	foods   foodStore
 	logs    logStore
 	reviews reviewStore
+
+	trustedProxies []string
+	authLimit      RateLimit
 }
 
 func New(d Deps) *Server {
@@ -71,17 +80,24 @@ func New(d Deps) *Server {
 		foods:   d.Foods,
 		logs:    d.Logs,
 		reviews: d.Reviews,
+
+		trustedProxies: d.TrustedProxies,
+		authLimit:      d.AuthRateLimit,
 	}
 }
 
 // Router wires every route. /health, /metrics, register and login sit outside the auth group and
-// outside the logging middleware.
-func (s *Server) Router(production bool) *gin.Engine {
+// outside the logging middleware. The limiter sweeper stops when ctx ends.
+func (s *Server) Router(ctx context.Context, production bool) (*gin.Engine, error) {
 	if production {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
 	r := gin.New()
+	err := r.SetTrustedProxies(s.trustedProxies)
+	if err != nil {
+		return nil, fmt.Errorf("set trusted proxies: %w", err)
+	}
 	r.Use(gin.Recovery(), observability())
 
 	r.GET("/health", func(c *gin.Context) { c.Status(http.StatusNoContent) })
@@ -91,8 +107,10 @@ func (s *Server) Router(production bool) *gin.Engine {
 		s.registerDevUI(r)
 	}
 
-	r.POST("/v1/auth/register", s.register)
-	r.POST("/v1/auth/login", s.login)
+	authLimiter := newIPLimiter(s.authLimit)
+	go authLimiter.run(ctx)
+	r.POST("/v1/auth/register", authLimiter.middleware(), s.register)
+	r.POST("/v1/auth/login", authLimiter.middleware(), s.login)
 
 	v1 := r.Group("/v1", s.auth())
 	{
@@ -113,5 +131,5 @@ func (s *Server) Router(production bool) *gin.Engine {
 		v1.DELETE("/entries/:id", s.deleteEntry)
 	}
 
-	return r
+	return r, nil
 }

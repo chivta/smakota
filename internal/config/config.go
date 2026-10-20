@@ -18,6 +18,13 @@ type Config struct {
 	HTTPAddr  string `env:"HTTP_ADDR"  envDefault:":8080" validate:"required"`
 	PublicURL string `env:"PUBLIC_URL" validate:"required,url"`
 
+	// TrustedProxies are the peers whose X-Forwarded-For is believed. Anything
+	// else could forge a client IP and dodge the per-IP rate limit.
+	TrustedProxies []string `env:"TRUSTED_PROXIES" envDefault:"127.0.0.1/32,::1/128,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16" envSeparator:"," validate:"dive,ip|cidr"`
+	// The per-IP budget shared by register and login.
+	AuthRateLimitPerMinute int `env:"AUTH_RATE_LIMIT_PER_MINUTE" envDefault:"5" validate:"min=1"`
+	AuthRateLimitBurst     int `env:"AUTH_RATE_LIMIT_BURST"      envDefault:"5" validate:"min=1"`
+
 	DatabaseURL string `env:"DATABASE_URL" validate:"required,url"`
 
 	// PushgatewayURL receives ingest metrics at the end of a run; empty means

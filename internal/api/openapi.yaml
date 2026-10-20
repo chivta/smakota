@@ -56,6 +56,15 @@ components:
       content:
         application/json:
           schema: { $ref: '#/components/schemas/Error' }
+    RateLimited:
+      description: Too many register or login calls from this client IP
+      headers:
+        Retry-After:
+          description: Seconds until a call is accepted again
+          schema: { type: integer }
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
     NotFound:
       description: No such resource
       content:
@@ -269,6 +278,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/RateLimited' }
 
   /v1/auth/login:
     post:
@@ -293,6 +303,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
+        "429": { $ref: '#/components/responses/RateLimited' }
 
   /v1/auth/logout:
     post:
