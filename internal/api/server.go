@@ -27,7 +27,7 @@ type tokenStore interface {
 type foodStore interface {
 	GetByID(ctx context.Context, id int64) (domain.Food, error)
 	GetByBarcode(ctx context.Context, barcode string) (domain.Food, error)
-	CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error)
+	CreateContributed(ctx context.Context, userID int64, f domain.Food) (domain.Food, error)
 	Search(ctx context.Context, p postgres.SearchParams) ([]postgres.Candidate, error)
 	Frequent(ctx context.Context, userID int64, limit, offset int) ([]postgres.FrequentFood, error)
 }
@@ -96,7 +96,7 @@ func (s *Server) Router(production bool) *gin.Engine {
 		v1.GET("/foods/frequent", s.frequentFoods)
 		v1.GET("/foods/:id", s.getFood)
 		v1.GET("/barcode/:code", s.getByBarcode)
-		v1.POST("/foods/personal", s.createPersonalFood)
+		v1.POST("/foods", s.createFood)
 
 		v1.GET("/entries", s.listEntries)
 		v1.POST("/entries", s.addEntry)

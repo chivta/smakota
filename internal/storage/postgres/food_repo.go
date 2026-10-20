@@ -17,7 +17,7 @@ const foodColumns = `
 	f.id, f.kind, f.name, f.brand, coalesce(f.barcode, ''), f.state,
 	f.kcal_100g, f.protein_100g, f.fat_100g, f.carbs_100g, f.package_g,
 	f.source_id, f.source_url, f.license_class, f.confidence,
-	f.owner_user_id, f.fetched_at`
+	f.owner_user_id, f.created_by_user_id, f.fetched_at`
 
 // Starting values for the history bonus, to be tuned against real data.
 const (
@@ -268,7 +268,7 @@ func (r *FoodRepo) Frequent(ctx context.Context, userID int64, limit, offset int
 			&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
 			&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
 			&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
-			&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
+			&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.CreatedBy, &f.FetchedAt,
 			&ff.Logs, &ff.LastLogged,
 		)
 		if scanErr != nil {
@@ -289,14 +289,17 @@ func (r *FoodRepo) Frequent(ctx context.Context, userID int64, limit, offset int
 	return out, nil
 }
 
-func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error) {
+// CreateContributed adds a shared catalogue row: owner_user_id stays null so
+// every caller sees it, and userID is kept as attribution only.
+func (r *FoodRepo) CreateContributed(ctx context.Context, userID int64, f domain.Food) (domain.Food, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
-		return domain.Food{}, fmt.Errorf("begin create personal food: %w", err)
+		return domain.Food{}, fmt.Errorf("begin create contributed food: %w", err)
 	}
 	defer tx.Rollback(ctx)
 
-	f.OwnerUserID = &userID
+	f.OwnerUserID = nil
+	f.CreatedBy = &userID
 	f.LicenseClass = domain.LicenseUser
 	f.Confidence = domain.ConfidenceUser
 	if f.SourceID == "" {
@@ -306,7 +309,7 @@ func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Fo
 		insert into foods (
 			kind, name, brand, barcode, state, kcal_100g, protein_100g,
 			fat_100g, carbs_100g, package_g, source_id, source_url,
-			license_class, confidence, owner_user_id, fetched_at
+			license_class, confidence, created_by_user_id, fetched_at
 		) values (
 			$1, $2, $3, nullif($4, ''), $5, $6, $7, $8, $9, $10,
 			$11, $12, $13, $14, $15, $16
@@ -314,20 +317,20 @@ func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Fo
 		returning id`,
 		f.Kind, f.Name, f.Brand, f.Barcode, f.State, f.Nutrition.Kcal,
 		f.Nutrition.Protein, f.Nutrition.Fat, f.Nutrition.Carbs, f.PackageG,
-		f.SourceID, f.SourceURL, f.LicenseClass, f.Confidence, f.OwnerUserID,
+		f.SourceID, f.SourceURL, f.LicenseClass, f.Confidence, f.CreatedBy,
 		f.FetchedAt,
 	).Scan(&f.ID)
 	if err != nil {
-		return domain.Food{}, fmt.Errorf("insert personal food: %w", err)
+		return domain.Food{}, fmt.Errorf("insert contributed food: %w", err)
 	}
 
 	err = replaceFoodDetails(ctx, tx, f, r.normalize)
 	if err != nil {
-		return domain.Food{}, fmt.Errorf("save personal food details: %w", err)
+		return domain.Food{}, fmt.Errorf("save contributed food details: %w", err)
 	}
 	err = tx.Commit(ctx)
 	if err != nil {
-		return domain.Food{}, fmt.Errorf("commit personal food: %w", err)
+		return domain.Food{}, fmt.Errorf("commit contributed food: %w", err)
 	}
 	return f, nil
 }
@@ -364,7 +367,7 @@ func scanFood(row pgx.Row) (domain.Food, error) {
 		&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
 		&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
 		&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
-		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
+		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.CreatedBy, &f.FetchedAt,
 	)
 	return f, err
 }
@@ -378,7 +381,7 @@ func scanFoodWithScore(row pgx.Row) (Candidate, error) {
 		&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
 		&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
 		&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
-		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
+		&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.CreatedBy, &f.FetchedAt,
 		&candidate.Score, &tightness, &candidate.Bonus, &localeBias,
 	)
 	return candidate, err

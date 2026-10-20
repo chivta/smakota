@@ -189,11 +189,39 @@ type personalFoodRequest struct {
 	Protein float64 `json:"protein" validate:"gte=0,lte=100"`
 	Fat     float64 `json:"fat"     validate:"gte=0,lte=100"`
 	Carbs   float64 `json:"carbs"   validate:"gte=0,lte=100"`
+
+	Portions []portionRequest `json:"portions" validate:"max=5,dive"`
 }
 
-// createPersonalFood is the escape hatch after two failed refinements. The entry
-// belongs to this user and ranks ahead of the catalogue for them.
-func (s *Server) createPersonalFood(c *gin.Context) {
+type portionRequest struct {
+	Name      string  `json:"name"       validate:"required,max=50"`
+	Grams     float64 `json:"grams"      validate:"gt=0,lte=5000"`
+	IsDefault bool    `json:"is_default"`
+}
+
+// portionsFromRequest enforces what tags cannot: one default at most, and the
+// first portion as the default when none is marked.
+func portionsFromRequest(reqs []portionRequest) ([]domain.Portion, error) {
+	portions := make([]domain.Portion, 0, len(reqs))
+	defaults := 0
+	for _, p := range reqs {
+		if p.IsDefault {
+			defaults++
+		}
+		portions = append(portions, domain.Portion{Name: p.Name, Grams: p.Grams, IsDefault: p.IsDefault})
+	}
+	if defaults > 1 {
+		return nil, domain.ErrInvalidInput
+	}
+	if defaults == 0 && len(portions) > 0 {
+		portions[0].IsDefault = true
+	}
+	return portions, nil
+}
+
+// createFood adds a crowd-sourced entry to the shared catalogue. The caller is
+// recorded as its contributor but gets no special access to it.
+func (s *Server) createFood(c *gin.Context) {
 	userID, err := currentUser(c)
 	if err != nil {
 		RespondWithError(c, err)
@@ -207,6 +235,12 @@ func (s *Server) createPersonalFood(c *gin.Context) {
 		return
 	}
 
+	portions, err := portionsFromRequest(req.Portions)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+
 	food := domain.Food{
 		Kind:         domain.KindDish,
 		Name:         req.Name,
@@ -215,10 +249,10 @@ func (s *Server) createPersonalFood(c *gin.Context) {
 		SourceID:     "user",
 		LicenseClass: domain.LicenseUser,
 		Confidence:   domain.ConfidenceUser,
-		OwnerUserID:  &userID,
+		Portions:     portions,
 	}
 
-	created, err := s.foods.CreatePersonal(c.Request.Context(), userID, food)
+	created, err := s.foods.CreateContributed(c.Request.Context(), userID, food)
 	if err != nil {
 		RespondWithError(c, err)
 		return
