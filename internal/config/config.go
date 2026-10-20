@@ -20,6 +20,10 @@ type Config struct {
 
 	DatabaseURL string `env:"DATABASE_URL" validate:"required,url"`
 
+	// PushgatewayURL receives ingest metrics at the end of a run; empty means
+	// do not push.
+	PushgatewayURL string `env:"PUSHGATEWAY_URL" validate:"omitempty,url"`
+
 	IngestUserAgent string `env:"INGEST_USER_AGENT" envDefault:"calbot/1.0" validate:"required"`
 	SilpoBranchID   string `env:"SILPO_BRANCH_ID"   envDefault:"00000000-0000-0000-0000-000000000000"`
 	// IngestRejectCap bounds the review-queue rows one run stores per distinct
