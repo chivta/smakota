@@ -126,6 +126,17 @@ components:
             History affinity added to the score when ranking, 0 to 0.25. Zero
             for foods the caller has never logged.
 
+    FrequentFood:
+      type: object
+      properties:
+        food: { $ref: '#/components/schemas/Food' }
+        logs:
+          type: integer
+          description: How many entries the caller has logged for this food, ever.
+        last_logged:
+          type: string
+          format: date-time
+
     LogEntry:
       type: object
       properties:
@@ -284,6 +295,34 @@ paths:
               schema:
                 type: array
                 items: { $ref: '#/components/schemas/Candidate' }
+        "400": { $ref: '#/components/responses/BadRequest' }
+        "401": { $ref: '#/components/responses/Unauthorized' }
+
+  /v1/foods/frequent:
+    get:
+      tags: [food]
+      summary: The caller's most-logged foods
+      operationId: frequentFoods
+      description: |
+        Catalogue foods ranked by how many times the caller has ever logged
+        them, with no time window and no recency decay; ties go to the most
+        recently logged. Entries logged inline, without a catalogue id, are not
+        counted.
+      parameters:
+        - name: limit
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: offset
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FrequentFood' }
         "400": { $ref: '#/components/responses/BadRequest' }
         "401": { $ref: '#/components/responses/Unauthorized' }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
 
@@ -99,6 +100,13 @@ type Candidate struct {
 	Food  domain.Food `json:"food"`
 	Score float64     `json:"score"`
 	Bonus float64     `json:"bonus"`
+}
+
+// FrequentFood is a catalogue food with the caller's lifetime log count for it.
+type FrequentFood struct {
+	Food       domain.Food `json:"food"`
+	Logs       int         `json:"logs"`
+	LastLogged time.Time   `json:"last_logged"`
 }
 
 type FoodRepo struct {
@@ -231,6 +239,54 @@ func (r *FoodRepo) Search(ctx context.Context, p SearchParams) ([]Candidate, err
 		}
 	}
 	return candidates, nil
+}
+
+// Frequent ranks the user's logged foods by lifetime log count, with no
+// recency weighting. Inline entries have no food_id and are not counted.
+func (r *FoodRepo) Frequent(ctx context.Context, userID int64, limit, offset int) ([]FrequentFood, error) {
+	rows, err := r.pool.Query(ctx, `
+		select `+foodColumns+`, h.logs, h.last_logged
+		from (
+			select food_id, count(*) as logs, max(logged_at) as last_logged
+			from log_entries
+			where user_id = $1 and food_id is not null
+			group by food_id
+		) h
+		join foods f on f.id = h.food_id
+		order by h.logs desc, h.last_logged desc, f.id
+		limit $2 offset $3`, userID, limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("list frequent foods: %w", err)
+	}
+	defer rows.Close()
+
+	out := make([]FrequentFood, 0)
+	for rows.Next() {
+		var ff FrequentFood
+		f := &ff.Food
+		scanErr := rows.Scan(
+			&f.ID, &f.Kind, &f.Name, &f.Brand, &f.Barcode, &f.State,
+			&f.Nutrition.Kcal, &f.Nutrition.Protein, &f.Nutrition.Fat,
+			&f.Nutrition.Carbs, &f.PackageG, &f.SourceID, &f.SourceURL,
+			&f.LicenseClass, &f.Confidence, &f.OwnerUserID, &f.FetchedAt,
+			&ff.Logs, &ff.LastLogged,
+		)
+		if scanErr != nil {
+			return nil, fmt.Errorf("scan frequent food: %w", scanErr)
+		}
+		out = append(out, ff)
+	}
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate frequent foods: %w", err)
+	}
+	rows.Close()
+	for i := range out {
+		err = r.loadPortions(ctx, &out[i].Food)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
 }
 
 func (r *FoodRepo) CreatePersonal(ctx context.Context, userID int64, f domain.Food) (domain.Food, error) {
