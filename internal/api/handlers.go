@@ -15,6 +15,9 @@ import (
 const (
 	defaultSearchLimit = 20
 	maxSearchLimit     = 100
+
+	defaultFrequentLimit = 20
+	maxFrequentLimit     = 100
 )
 
 // Outcome labels of metrics.ResolverAttempts.
@@ -120,6 +123,35 @@ func (s *Server) searchFoods(c *gin.Context) {
 	metrics.ResolverLatency.WithLabelValues(input).Observe(time.Since(started).Seconds())
 
 	metrics.SearchResults.Observe(float64(len(found)))
+
+	c.JSON(http.StatusOK, found)
+}
+
+// frequentFoods ranks the caller's foods by lifetime log count. Unlike search
+// it applies no recency decay.
+func (s *Server) frequentFoods(c *gin.Context) {
+	userID, err := currentUser(c)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+
+	limit, err := queryInt(c, "limit", defaultFrequentLimit, 1, maxFrequentLimit)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+	offset, err := queryInt(c, "offset", 0, 0, math.MaxInt32)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
+
+	found, err := s.foods.Frequent(c.Request.Context(), userID, limit, offset)
+	if err != nil {
+		RespondWithError(c, err)
+		return
+	}
 
 	c.JSON(http.StatusOK, found)
 }
