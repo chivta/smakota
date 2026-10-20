@@ -5,6 +5,7 @@ package metrics
 import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
+	"github.com/prometheus/client_golang/prometheus/push"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 )
@@ -36,7 +37,7 @@ var (
 
 	IngestRows = promauto.NewCounterVec(prometheus.CounterOpts{
 		Name: "calbot_ingest_rows_total",
-		Help: "Rows moved through the pipeline, by source and stage.",
+		Help: "Rows moved through the pipeline in the most recent run of the source, by source and stage. Each run is a fresh process pushed to the Pushgateway, so this is a per-run count that resets, not a lifetime total: do not use rate().",
 	}, []string{"source", "stage"})
 
 	// IngestAge answers "is the data fresh" and backs the staleness alert.
@@ -76,6 +77,22 @@ var (
 		Help: "Distinct users with a log entry created inside the window.",
 	}, []string{"window"})
 )
+
+// ingestPushJob and ingestPushSourceLabel identify one source's group in the
+// Pushgateway, so the CronJobs do not overwrite each other.
+const (
+	ingestPushJob         = "calbot_ingest"
+	ingestPushSourceLabel = "ingest_source"
+)
+
+// PushIngest sends the default registry to the Pushgateway, grouped by source.
+// A CronJob exits before Prometheus could scrape it.
+func PushIngest(url, source string) error {
+	return push.New(url, ingestPushJob).
+		Grouping(ingestPushSourceLabel, source).
+		Gatherer(prometheus.DefaultGatherer).
+		Push()
+}
 
 // errorHook increments Errors on every error-level event.
 type errorHook struct{}

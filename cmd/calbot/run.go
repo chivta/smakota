@@ -232,6 +232,19 @@ func runIngest(ctx context.Context, cfg config.Config, name string) error {
 	}
 	defer c.close()
 
+	runErr := c.ingestSource(ctx, name)
+
+	// Pushed even after a failed run: its row counts are what debugging needs.
+	if cfg.PushgatewayURL != "" {
+		pushErr := metrics.PushIngest(cfg.PushgatewayURL, name)
+		if pushErr != nil {
+			log.Error().Err(pushErr).Msg("push ingest metrics")
+		}
+	}
+	return runErr
+}
+
+func (c *container) ingestSource(ctx context.Context, name string) error {
 	if name == ingestAllName {
 		return c.ingestAll(ctx)
 	}

@@ -35,6 +35,8 @@ spec:
                   value: info
                 - name: PUBLIC_URL
                   value: https://api.smakota.chivtar.dev
+                - name: PUSHGATEWAY_URL
+                  value: http://prometheus-pushgateway.monitoring.svc.cluster.local:9091
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
