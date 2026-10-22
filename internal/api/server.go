@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/arvlas/calbot/internal/mcp"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -130,6 +131,17 @@ func (s *Server) Router(ctx context.Context, production bool) (*gin.Engine, erro
 		v1.PATCH("/entries/:id", s.updateEntry)
 		v1.DELETE("/entries/:id", s.deleteEntry)
 	}
+
+	// MCP rides the same bearer auth; the tools read the caller from the request context.
+	mcpHandler := mcp.NewHandler(mcp.Deps{Foods: s.foods, Logs: s.logs, Reviews: s.reviews})
+	r.Any("/mcp", s.auth(), func(c *gin.Context) {
+		userID, err := currentUser(c)
+		if err != nil {
+			RespondWithError(c, err)
+			return
+		}
+		mcpHandler.ServeHTTP(c.Writer, c.Request.WithContext(mcp.WithUser(c.Request.Context(), userID)))
+	})
 
 	return r, nil
 }
