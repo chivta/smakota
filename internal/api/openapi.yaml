@@ -38,6 +38,8 @@ tags:
     description: The catalogue, and searching it.
   - name: day
     description: Logged entries.
+  - name: mcp
+    description: Model Context Protocol endpoint for AI agents.
   - name: ops
     description: Probes and metrics. These need no credentials.
 
@@ -595,3 +597,19 @@ paths:
       responses:
         "204": { description: Deleted }
         "409": { $ref: '#/components/responses/DayLocked' }
+
+  /mcp:
+    post:
+      tags: [mcp]
+      summary: Model Context Protocol endpoint
+      operationId: mcp
+      description: |
+        Speaks MCP over stateless streamable HTTP (JSON-RPC in the POST body;
+        GET and DELETE return 405) and needs the same bearer token as the REST
+        routes. The caller is the token's owner; no tool takes a user id.
+        The tools are `search_foods`, `get_food`, `log_entry`, `list_entries`,
+        `frequent_foods` and `create_food`; connect with an MCP client and call
+        `tools/list` for their descriptions and schemas.
+      responses:
+        "200": { description: A JSON-RPC response }
+        "401": { $ref: '#/components/responses/Unauthorized' }
