@@ -65,6 +65,7 @@ priority list.
     internal/resolver   query normalization shared by catalogue writes and search
     internal/ingest     pipeline framework and one package per source
     internal/api        Gin handlers and the OpenAPI spec served at /docs
+    internal/mcp        the MCP tools served at /mcp, behind the same bearer auth
     internal/seed       the curated catalogue, embedded in the binary
 
 ## Two seams worth knowing
@@ -72,6 +73,11 @@ priority list.
 **Alias matching.** `food_aliases.norm` is written by `FoodRepo.SeedCatalogue`
 and read by `FoodRepo.Search`, and both must use `resolver.Normalize`. Normalize
 with anything else and every curated entry silently stops matching.
+
+**One amount resolver.** `domain.ResolveAmount` turns grams, a named portion or
+nothing into grams, and both `internal/api` and `internal/mcp` log through it.
+Two copies would let the same request weigh different amounts depending on
+which door it came in by.
 
 **Named-type adapters.** The ingest framework and the resolver each declare the
 storage they need on their own side, so neither imports the repository package.
