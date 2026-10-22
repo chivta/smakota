@@ -16,21 +16,6 @@ const (
 	maxEntriesLimit     = 500
 )
 
-// Labels of metrics.Entries.
-const (
-	entryPathCatalogue = "catalogue"
-	entryPathInline    = "inline"
-
-	amountGrams          = "grams"
-	amountPortion        = "portion"
-	amountDefaultPortion = "default_portion"
-	// amountFallback is the 100 g assumed for a food that carries no portion at
-	// all; it is not a portion the caller or the catalogue chose.
-	amountFallback = "fallback_100g"
-
-	foodSourceInline = "inline"
-)
-
 type inlineNutrition struct {
 	Kcal    *float64 `json:"kcal"    validate:"required,gte=0,lte=20000"`
 	Protein float64  `json:"protein" validate:"gte=0,lte=5000"`
@@ -70,10 +55,10 @@ func (s *Server) addEntry(c *gin.Context) {
 	var path, amount, foodSource string
 	switch {
 	case req.FoodID != nil && req.Name == "" && req.Nutrition == nil:
-		path = entryPathCatalogue
+		path = domain.LogPathCatalogue
 		entry, amount, foodSource, err = s.catalogueEntry(c.Request.Context(), *req.FoodID, req)
 	case req.FoodID == nil && req.Name != "":
-		path, amount, foodSource = entryPathInline, amountGrams, foodSourceInline
+		path, amount, foodSource = domain.LogPathInline, domain.AmountGrams, domain.SourceInline
 		entry, err = inlineEntry(req)
 	default:
 		err = domain.ErrInvalidInput
@@ -108,7 +93,7 @@ func (s *Server) catalogueEntry(ctx context.Context, foodID int64, req addEntryR
 		return domain.LogEntry{}, "", "", err
 	}
 
-	grams, amount, err := resolveGrams(food, req)
+	grams, amount, err := domain.ResolveAmount(food, req.Grams, req.PortionName, req.PortionQty)
 	if err != nil {
 		return domain.LogEntry{}, "", "", err
 	}
@@ -139,33 +124,6 @@ func inlineEntry(req addEntryRequest) (domain.LogEntry, error) {
 			Carbs:   req.Nutrition.Carbs,
 		},
 	}, nil
-}
-
-// resolveGrams turns whichever amount the client sent into grams, and says
-// which kind it was. A named portion count multiplies that portion's grams.
-func resolveGrams(food domain.Food, req addEntryRequest) (float64, string, error) {
-	if req.Grams > 0 {
-		return req.Grams, amountGrams, nil
-	}
-
-	if req.PortionName != "" {
-		for _, p := range food.Portions {
-			if p.Name == req.PortionName {
-				qty := req.PortionQty
-				if qty == 0 {
-					qty = 1
-				}
-				return p.Grams * qty, amountPortion, nil
-			}
-		}
-		return 0, "", domain.ErrInvalidInput
-	}
-
-	portion, ok := food.DefaultPortion()
-	if ok {
-		return portion.Grams, amountDefaultPortion, nil
-	}
-	return 100, amountFallback, nil
 }
 
 // listEntries is the history read: a flat page of entries, newest first. It

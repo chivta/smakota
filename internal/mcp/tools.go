@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/arvlas/calbot/internal/domain"
+	"github.com/arvlas/calbot/internal/metrics"
 	"github.com/arvlas/calbot/internal/resolver"
 	"github.com/arvlas/calbot/internal/storage/postgres"
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -25,9 +26,6 @@ const (
 	maxPortions    = 5
 	maxFoodKcal    = 900
 	maxFoodMacro   = 100
-
-	// fallbackGrams is assumed for a catalogue food that carries no portion.
-	fallbackGrams = 100
 
 	foodSourceUser = "user"
 )
@@ -111,6 +109,8 @@ func (t *tools) searchFoods(ctx context.Context, _ *sdk.CallToolRequest, in sear
 	if found == nil {
 		found = []postgres.Candidate{}
 	}
+
+	metrics.SearchResults.Observe(float64(len(found)))
 	return nil, searchFoodsOutput{Results: found}, nil
 }
 
@@ -153,10 +153,13 @@ func (t *tools) logEntry(ctx context.Context, _ *sdk.CallToolRequest, in logEntr
 	}
 
 	var entry domain.LogEntry
+	var path, amount, foodSource string
 	switch {
 	case in.FoodID != nil && *in.FoodID > 0 && in.Name == "" && in.Nutrition == nil:
-		entry, err = t.catalogueEntry(ctx, *in.FoodID, in)
+		path = domain.LogPathCatalogue
+		entry, amount, foodSource, err = t.catalogueEntry(ctx, *in.FoodID, in)
 	case in.FoodID == nil && in.Name != "":
+		path, amount, foodSource = domain.LogPathInline, domain.AmountGrams, domain.SourceInline
 		entry, err = inlineEntry(in)
 	default:
 		err = domain.ErrInvalidInput
@@ -175,24 +178,30 @@ func (t *tools) logEntry(ctx context.Context, _ *sdk.CallToolRequest, in logEntr
 	}
 
 	saved, err := t.logs.Add(ctx, entry)
-	return nil, saved, err
+	if err != nil {
+		return nil, domain.LogEntry{}, err
+	}
+
+	metrics.Entries.WithLabelValues(path, amount, foodSource).Inc()
+	return nil, saved, nil
 }
 
-func (t *tools) catalogueEntry(ctx context.Context, foodID int64, in logEntryInput) (domain.LogEntry, error) {
+func (t *tools) catalogueEntry(ctx context.Context, foodID int64, in logEntryInput) (domain.LogEntry, string, string, error) {
 	food, err := t.foods.GetByID(ctx, foodID)
 	if err != nil {
-		return domain.LogEntry{}, err
+		return domain.LogEntry{}, "", "", err
 	}
-	grams, err := resolveGrams(food, in)
+	grams, amount, err := domain.ResolveAmount(food, in.Grams, in.PortionName, in.PortionQty)
 	if err != nil {
-		return domain.LogEntry{}, err
+		return domain.LogEntry{}, "", "", err
 	}
-	return domain.LogEntry{
+	entry := domain.LogEntry{
 		FoodID:    &food.ID,
 		FoodName:  food.Name,
 		Grams:     grams,
 		Nutrition: food.Scale(grams),
-	}, nil
+	}
+	return entry, amount, food.SourceID, nil
 }
 
 func inlineEntry(in logEntryInput) (domain.LogEntry, error) {
@@ -210,30 +219,6 @@ func inlineEntry(in logEntryInput) (domain.LogEntry, error) {
 			Carbs:   n.Carbs,
 		},
 	}, nil
-}
-
-// resolveGrams mirrors the REST amount rules: grams win, then a named portion
-// times its quantity, then the default portion, then 100 g.
-func resolveGrams(food domain.Food, in logEntryInput) (float64, error) {
-	if in.Grams > 0 {
-		return in.Grams, nil
-	}
-	if in.PortionName != "" {
-		for _, p := range food.Portions {
-			if p.Name == in.PortionName {
-				qty := in.PortionQty
-				if qty == 0 {
-					qty = 1
-				}
-				return p.Grams * qty, nil
-			}
-		}
-		return 0, domain.ErrInvalidInput
-	}
-	if portion, ok := food.DefaultPortion(); ok {
-		return portion.Grams, nil
-	}
-	return fallbackGrams, nil
 }
 
 type listEntriesInput struct {
@@ -359,6 +344,8 @@ func (t *tools) createFood(ctx context.Context, _ *sdk.CallToolRequest, in creat
 		InputType: domain.InputText,
 		Reason:    domain.ReviewManualEntry,
 	})
+
+	metrics.PersonalFoods.Inc()
 	return nil, created, nil
 }
 
