@@ -15,6 +15,12 @@ info:
     `calbot user create` and issue it a token with `calbot token issue
     <user-id>`; `calbot token revoke <token-id>` disables one.
 
+    When the operator configures an OIDC issuer, `Authorization: Bearer` also
+    accepts a JWT access token from that identity provider (checked for
+    signature, issuer, audience and expiry). A credential containing a dot is
+    treated as a JWT, anything else as an opaque token. The token's `sub` maps
+    to a local user, created on the first request that carries a new `sub`.
+
     Errors carry a machine-readable `code` and never a human message. Clients
     map a code to text in their own translation map.
 servers:
@@ -309,9 +315,14 @@ paths:
     post:
       tags: [auth]
       summary: Revoke the calling token
+      description: >
+        Revokes the opaque token the call was made with. When the caller
+        authenticated with an identity provider JWT there is nothing local to
+        revoke: the provider owns that session, so the answer is still 204 with
+        no effect, and the JWT stays valid until it expires.
       operationId: logout
       responses:
-        "204": { description: Revoked }
+        "204": { description: Revoked, or nothing to revoke for a JWT }
         "401": { $ref: '#/components/responses/Unauthorized' }
 
   /v1/me:
