@@ -21,6 +21,7 @@ type userStore interface {
 	Update(ctx context.Context, u domain.User) error
 	CreateWithCredentials(ctx context.Context, email, passwordHash string) (domain.User, error)
 	GetCredentials(ctx context.Context, email string) (int64, string, error)
+	GetOrCreateBySubject(ctx context.Context, subject, email string) (int64, error)
 }
 
 type tokenStore interface {
@@ -60,6 +61,11 @@ type Deps struct {
 	// the rate limit keys on the client IP that results.
 	TrustedProxies []string
 	AuthRateLimit  RateLimit
+
+	// OIDCIssuer and OIDCAudience turn on JWT bearer auth; an empty issuer
+	// leaves it off.
+	OIDCIssuer   string
+	OIDCAudience string
 }
 
 type Server struct {
@@ -71,6 +77,10 @@ type Server struct {
 
 	trustedProxies []string
 	authLimit      RateLimit
+
+	oidcIssuer   string
+	oidcAudience string
+	idTokens     idTokenVerifier // nil while OIDC is off
 }
 
 func New(d Deps) *Server {
@@ -83,6 +93,9 @@ func New(d Deps) *Server {
 
 		trustedProxies: d.TrustedProxies,
 		authLimit:      d.AuthRateLimit,
+
+		oidcIssuer:   d.OIDCIssuer,
+		oidcAudience: d.OIDCAudience,
 	}
 }
 
@@ -99,6 +112,13 @@ func (s *Server) Router(ctx context.Context, production bool) (*gin.Engine, erro
 		return nil, fmt.Errorf("set trusted proxies: %w", err)
 	}
 	r.Use(gin.Recovery(), observability())
+
+	if s.oidcIssuer != "" {
+		s.idTokens, err = newOIDCVerifier(ctx, s.oidcIssuer, s.oidcAudience)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	r.GET("/health", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 	r.GET("/metrics", gin.WrapH(promhttp.Handler()))

@@ -49,14 +49,26 @@ func mustHash(password string) []byte {
 	return h
 }
 
-// auth accepts one credential: "Authorization: Bearer <token>", where the token
-// belongs to exactly one user. The user is whoever owns the token; nothing else
+// auth accepts one credential: "Authorization: Bearer <token>", either an opaque
+// API token or a JWT from the identity provider, each belonging to exactly one
+// local user. The user is whoever owns the token; nothing else
 // in the request can change that.
 func (s *Server) auth() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, found := strings.CutPrefix(c.GetHeader("Authorization"), bearerPrefix)
 		if !found || token == "" {
 			RespondWithError(c, domain.ErrUnauthorized)
+			return
+		}
+
+		if isJWT(token) {
+			userID, err := s.authenticateJWT(c, token)
+			if err != nil {
+				RespondWithError(c, err)
+				return
+			}
+			c.Set(userIDKey, userID)
+			c.Next()
 			return
 		}
 
@@ -178,8 +190,14 @@ func (s *Server) login(c *gin.Context) {
 }
 
 // logout revokes the token that authenticated the call. Revoking is idempotent,
-// and a revoked token cannot reach this handler again anyway.
+// and a revoked token cannot reach this handler again anyway. A JWT caller has
+// no local token: the identity provider owns that session, so this is a no-op.
 func (s *Server) logout(c *gin.Context) {
+	if _, isOpaque := c.Get(tokenIDKey); !isOpaque {
+		c.Status(http.StatusNoContent)
+		return
+	}
+
 	tokenID, err := currentToken(c)
 	if err != nil {
 		RespondWithError(c, err)

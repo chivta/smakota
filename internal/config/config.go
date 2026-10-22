@@ -25,6 +25,11 @@ type Config struct {
 	AuthRateLimitPerMinute int `env:"AUTH_RATE_LIMIT_PER_MINUTE" envDefault:"5" validate:"min=1"`
 	AuthRateLimitBurst     int `env:"AUTH_RATE_LIMIT_BURST"      envDefault:"5" validate:"min=1"`
 
+	// OIDCIssuer turns on JWT bearer auth next to the opaque tokens; empty
+	// leaves it off. OIDCAudience is the "aud" the JWTs must carry.
+	OIDCIssuer   string `env:"OIDC_ISSUER"   validate:"omitempty,url"`
+	OIDCAudience string `env:"OIDC_AUDIENCE" validate:"required_with=OIDCIssuer"`
+
 	DatabaseURL string `env:"DATABASE_URL" validate:"required,url"`
 
 	// PushgatewayURL receives ingest metrics at the end of a run; empty means

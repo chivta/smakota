@@ -139,6 +139,8 @@ func runAPI(ctx context.Context, cfg config.Config) error {
 			PerMinute: cfg.AuthRateLimitPerMinute,
 			Burst:     cfg.AuthRateLimitBurst,
 		},
+		OIDCIssuer:   cfg.OIDCIssuer,
+		OIDCAudience: cfg.OIDCAudience,
 	})
 
 	router, err := server.Router(ctx, cfg.IsProduction())

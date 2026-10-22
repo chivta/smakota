@@ -90,6 +90,30 @@ func (r *UserRepo) GetCredentials(ctx context.Context, email string) (int64, str
 	return id, hash, nil
 }
 
+// GetOrCreateBySubject returns the user bound to an identity provider subject,
+// creating it on first sight. The email is stored only when no other user has
+// it; an account is never linked to an existing one by email.
+func (r *UserRepo) GetOrCreateBySubject(ctx context.Context, subject, email string) (int64, error) {
+	_, err := r.pool.Exec(ctx, `
+		insert into users (subject, email)
+		values ($1, case
+			when exists (select 1 from users where lower(email) = $2) then null
+			else nullif($2, '')
+		end)
+		on conflict (subject) do nothing`,
+		subject, email)
+	if err != nil {
+		return 0, fmt.Errorf("create user by subject: %w", err)
+	}
+
+	var id int64
+	err = r.pool.QueryRow(ctx, `select id from users where subject = $1`, subject).Scan(&id)
+	if err != nil {
+		return 0, fmt.Errorf("get user by subject: %w", err)
+	}
+	return id, nil
+}
+
 func (r *UserRepo) Update(ctx context.Context, u domain.User) error {
 	err := r.pool.QueryRow(ctx, `
 		update users set
